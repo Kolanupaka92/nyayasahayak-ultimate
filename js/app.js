@@ -9,7 +9,7 @@ import { STATES_UTS, RED_FLAGS_DB, I18N } from './districts-data.js';
 import { analyzeNotice } from './ai-engine.js';
 import { nearbyServices, mapLink, getCoords } from './geolocation.js';
 import { lookupTargets, statusSummary, isValidCNR } from './ecourts-api.js';
-import { speak, speakHelplines, isSupported as ttsSupported, startDictation, stopDictation, sttSupported, isDictating } from './ivr.js';
+import { speak, speakHelplines, isSupported as ttsSupported, hasVoiceFor, startDictation, stopDictation, sttSupported, isDictating } from './ivr.js';
 import { encryptData, decryptData, unlockWithPin, hashPin, isUnlocked } from './encryption.js';
 
 // ---------- State ----------
@@ -606,7 +606,7 @@ function runAnalyze() {
     ${a.dates.length ? `<p class="mt-1"><strong>${L('Dates found', 'तारीखें', 'కనుగొన్న తేదీలు')}:</strong> ${a.dates.map(esc).join(', ')}</p>` : ''}
     ${a.amounts.length ? `<p><strong>${L('Amounts', 'राशि', 'మొత్తాలు')}:</strong> ${a.amounts.map(esc).join(', ')}</p>` : ''}
     <h5 style="margin-top:.6rem">${L('In simple language', 'सरल भाषा में', 'సరళ భాషలో')}:</h5>
-    <div class="alert alert-${a.urgency === 'high' ? 'danger' : 'info'}">${esc(a.explanation)}</div>
+    <div class="alert alert-${a.urgency === 'high' ? 'danger' : 'info'}" id="analyzerExplain">${esc(a.explanation)}</div>
     <h5>${L('Recommendations', 'सुझाव', 'సిఫార్సులు')}:</h5>
     <ul>
       <li>📅 ${L('Add every date to your calendar', 'तारीखें कैलेंडर में डालें', 'ప్రతి తేదీని మీ క్యాలెండర్‌కు జోడించండి')}</li>
@@ -615,7 +615,7 @@ function runAnalyze() {
       ${a.urgency === 'high' ? `<li>🚨 <strong>${L('Time-sensitive — act now', 'समय-संवेदनशील — तुरंत कार्रवाई', 'సమయం కీలకం — ఇప్పుడే చర్య తీసుకోండి')}</strong></li>` : ''}
       <li>📞 ${L('Free help', 'मुफ्त सहायता', 'ఉచిత సహాయం')}: <strong>15100</strong> (NALSA)</li>
     </ul>
-    <button class="btn btn-outline btn-sm mt-1" onclick="NS.speakText(${JSON.stringify(a.explanation)})">🔊 ${L('Read aloud', 'सुनें', 'బిగ్గరగా చదవండి')}</button>
+    <button class="btn btn-outline btn-sm mt-1" onclick="NS.speakText(document.getElementById('analyzerExplain').innerText)">🔊 ${L('Read aloud', 'सुनें', 'బిగ్గరగా చదవండి')}</button>
   </div>`;
   res.style.display = 'block';
 }
@@ -769,7 +769,7 @@ function rightsData(type) {
 function showRights(type) {
   const d = rightsData(type);
   const el = $('rightsInfo');
-  el.innerHTML = `<h3 class="card-title">${d.title}</h3><div style="line-height:1.7">${d.c}</div><button class="btn btn-outline btn-sm mt-1" onclick="NS.speakText(document.getElementById('rightsInfo').innerText)">🔊 ${L('Read aloud', 'सुनें', 'బిగ్గరగా చదవండి')}</button>`;
+  el.innerHTML = `<h3 class="card-title">${d.title}</h3><div style="line-height:1.7" id="rightsContent">${d.c}</div><button class="btn btn-outline btn-sm mt-1" onclick="NS.speakText(document.getElementById('rightsContent').innerText)">🔊 ${L('Read aloud', 'सुनें', 'బిగ్గరగా చదవండి')}</button>`;
   el.style.display = 'block';
   el.scrollIntoView({ behavior: 'smooth' });
 }
@@ -811,7 +811,16 @@ const handlers = {
   findLocation,
   showRights,
   speakHelplines: () => speakHelplines(currentLang),
-  speakText: (txt) => { if (!ttsSupported()) { toast('⚠️ ' + L('Voice not supported', 'आवाज समर्थित नहीं', 'వాయిస్ మద్దతు లేదు'), 'warning'); return; } speak(txt, currentLang); toast('🔊 ' + L('Playing…', 'चल रहा है…', 'ప్లే అవుతోంది…')); },
+  speakText: (txt) => {
+    if (!ttsSupported()) { toast('⚠️ ' + L('Read-aloud not supported in this browser', 'इस ब्राउज़र में सुनना समर्थित नहीं', 'ఈ బ్రౌజర్‌లో చదవడం మద్దతు లేదు'), 'warning'); return; }
+    if (!txt || !txt.trim()) return;
+    speak(txt, currentLang);
+    if (!hasVoiceFor(currentLang)) {
+      toast('🔊 ' + L('No voice pack for this language on your device — reading may be silent or accented.', 'इस भाषा का वॉइस पैक नहीं है — आवाज नहीं आ सकती।', 'ఈ భాషకు వాయిస్ ప్యాక్ లేదు — ధ్వని రాకపోవచ్చు.'), 'warning');
+    } else {
+      toast('🔊 ' + L('Playing…', 'चल रहा है…', 'ప్లే అవుతోంది…'));
+    }
+  },
   removeDoc: (i) => { currentDocs.splice(i, 1); renderDocList(); },
   switchCase: (tab, el) => {
     document.querySelectorAll('#mainContent .tab').forEach(t => t.classList.remove('active'));

@@ -18,13 +18,29 @@ export function isSupported() {
   return 'speechSynthesis' in window;
 }
 
-export function speak(text, lang = 'en') {
+// True if the device has a synthesis voice for the given app language.
+export function hasVoiceFor(lang = 'en') {
   if (!isSupported()) return false;
+  const target = VOICE_LANG[lang] || 'en-IN';
+  const voices = window.speechSynthesis.getVoices();
+  return voices.some(v => v.lang === target || v.lang?.toLowerCase().startsWith(lang));
+}
+
+export function speak(text, lang = 'en') {
+  if (!isSupported() || !text) return false;
   window.speechSynthesis.cancel();
+  const target = VOICE_LANG[lang] || 'en-IN';
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = VOICE_LANG[lang] || 'en-IN';
+  u.lang = target;
   u.rate = 0.95;
-  window.speechSynthesis.speak(u);
+  // Pick the closest available voice: exact locale → same language → English.
+  const voices = window.speechSynthesis.getVoices();
+  const match = voices.find(v => v.lang === target)
+    || voices.find(v => v.lang?.toLowerCase().startsWith(lang))
+    || voices.find(v => v.lang?.toLowerCase().startsWith('en'));
+  if (match) u.voice = match;
+  // Chrome sometimes needs a tick after cancel() before speak() takes effect.
+  setTimeout(() => window.speechSynthesis.speak(u), 60);
   return true;
 }
 
