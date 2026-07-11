@@ -22,15 +22,15 @@ export function getCoords() {
 // Static list of essential legal-aid contacts for a district.
 // Phone numbers marked XXX are placeholders the user confirms locally.
 export function nearbyServices(district, lang = 'en') {
-  const d = district || (lang === 'hi' ? 'जिला मुख्यालय' : 'District HQ');
-  const hi = lang === 'hi';
+  const tr = (en, hi, te) => (lang === 'te' ? te : lang === 'hi' ? hi : en);
+  const d = district || tr('District HQ', 'जिला मुख्यालय', 'జిల్లా ప్రధాన కార్యాలయం');
   return [
-    { icon: '🏛️', name: hi ? 'जिला न्यायालय' : 'District Court', address: d, phone: '', map: `${d} District Court`, dist: '~2 km' },
-    { icon: '👮', name: hi ? 'पुलिस स्टेशन' : 'Police Station', address: d, phone: '100', map: `${d} Police Station`, dist: '~1 km' },
-    { icon: '⚖️', name: 'DLSA ' + (hi ? 'कार्यालय' : 'Office'), address: hi ? 'न्यायालय परिसर' : 'Court Complex', phone: '15100', map: `${d} District Legal Services Authority`, dist: '~2 km' },
-    { icon: '🏛️', name: hi ? 'तहसील कार्यालय' : 'Tehsildar Office', address: hi ? 'कलेक्ट्रेट' : 'Collectorate', phone: '', map: `${d} Tehsil Office`, dist: '~3 km' },
-    { icon: '🏥', name: hi ? 'सरकारी अस्पताल' : 'Govt Hospital', address: d, phone: '102', map: `${d} Government Hospital`, dist: '~2 km' },
-    { icon: '📞', name: 'NALSA', address: hi ? 'नई दिल्ली' : 'New Delhi', phone: '15100', map: '', dist: hi ? 'टोल फ्री' : 'Toll Free' }
+    { icon: '🏛️', name: tr('District Court', 'जिला न्यायालय', 'జిల్లా న్యాయస్థానం'), address: d, phone: '', map: `${d} District Court`, dist: '~2 km' },
+    { icon: '👮', name: tr('Police Station', 'पुलिस स्टेशन', 'పోలీస్ స్టేషన్'), address: d, phone: '100', map: `${d} Police Station`, dist: '~1 km' },
+    { icon: '⚖️', name: 'DLSA ' + tr('Office', 'कार्यालय', 'కార్యాలయం'), address: tr('Court Complex', 'न्यायालय परिसर', 'కోర్టు ప్రాంగణం'), phone: '15100', map: `${d} District Legal Services Authority`, dist: '~2 km' },
+    { icon: '🏛️', name: tr('Tehsildar Office', 'तहसील कार्यालय', 'తహసీల్దార్ కార్యాలయం'), address: tr('Collectorate', 'कलेक्ट्रेट', 'కలెక్టరేట్'), phone: '', map: `${d} Tehsil Office`, dist: '~3 km' },
+    { icon: '🏥', name: tr('Govt Hospital', 'सरकारी अस्पताल', 'ప్రభుత్వ ఆసుపత్రి'), address: d, phone: '102', map: `${d} Government Hospital`, dist: '~2 km' },
+    { icon: '📞', name: 'NALSA', address: tr('New Delhi', 'नई दिल्ली', 'న్యూఢిల్లీ'), phone: '15100', map: '', dist: tr('Toll Free', 'टोल फ्री', 'టోల్ ఫ్రీ') }
   ];
 }
 

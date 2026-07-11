@@ -2,6 +2,8 @@
 // app.js — NyayaSahayak main controller
 // ES module. Imports data + feature modules and renders
 // the single-page UI. All state lives on-device.
+// UI content is authored in English, Hindi and Telugu via
+// the L(en, hi, te) helper; nav labels come from I18N (12 langs).
 // ============================================
 import { STATES_UTS, RED_FLAGS_DB, I18N } from './districts-data.js';
 import { analyzeNotice } from './ai-engine.js';
@@ -45,7 +47,8 @@ async function loadCases() {
 
 // ---------- i18n ----------
 function t(key) { return I18N[key]?.[currentLang] || I18N[key]?.en || key; }
-const L = (en, hi) => (currentLang === 'hi' ? hi : en);
+// Trilingual inline helper: English / Hindi / Telugu (Telugu & Hindi fall back to English).
+const L = (en, hi, te) => currentLang === 'te' ? (te ?? en) : currentLang === 'hi' ? (hi ?? en) : en;
 
 // ---------- Pages config ----------
 const PAGES = [
@@ -84,7 +87,7 @@ function bindGlobal() {
   $('lockBtn').addEventListener('click', lockApp);
   $('logo').addEventListener('click', () => showPage('dashboard'));
   $('modal').addEventListener('click', e => { if (e.target.id === 'modal') e.target.classList.remove('show'); });
-  // expose a couple of handlers used by inline onclick in generated markup
+  // expose handlers used by inline onclick in generated markup
   window.NS = handlers;
 }
 
@@ -155,7 +158,7 @@ function changeLanguage() {
   document.documentElement.lang = currentLang;
   localStorage.setItem('nyayaLang', currentLang);
   renderSidebar(); renderCurrentPage();
-  toast('✓ ' + L('Language updated', 'भाषा अपडेट'));
+  toast('✓ ' + L('Language updated', 'भाषा अपडेट', 'భాష మార్చబడింది'));
 }
 function toggleTheme() {
   document.body.classList.toggle('dark');
@@ -164,14 +167,14 @@ function toggleTheme() {
 
 // ---------- Lock / PIN ----------
 async function lockApp() {
-  const pin = prompt(L('Enter 4-digit PIN to protect your case data:', 'डेटा सुरक्षित करने के लिए 4-अंकीय PIN:'));
-  if (!pin || !/^\d{4}$/.test(pin)) { toast('⚠️ ' + L('PIN must be 4 digits', 'PIN 4 अंक का हो'), 'warning'); return; }
+  const pin = prompt(L('Enter 4-digit PIN to protect your case data:', 'डेटा सुरक्षित करने के लिए 4-अंकीय PIN:', 'మీ కేసు డేటాను రక్షించడానికి 4-అంకెల PIN నమోదు చేయండి:'));
+  if (!pin || !/^\d{4}$/.test(pin)) { toast('⚠️ ' + L('PIN must be 4 digits', 'PIN 4 अंक का हो', 'PIN 4 అంకెలు ఉండాలి'), 'warning'); return; }
   const h = await hashPin(pin);
-  if (pinHash && pinHash !== h) { toast('❌ ' + L('Wrong PIN', 'गलत PIN'), 'error'); return; }
+  if (pinHash && pinHash !== h) { toast('❌ ' + L('Wrong PIN', 'गलत PIN', 'తప్పు PIN'), 'error'); return; }
   pinHash = h; localStorage.setItem('nyayaPinHash', h);
   await unlockWithPin(pin);
   await saveCases(); // re-save encrypted
-  toast('🔒 ' + L('Data secured & encrypted', 'डेटा एन्क्रिप्ट किया गया'));
+  toast('🔒 ' + L('Data secured & encrypted', 'डेटा एन्क्रिप्ट किया गया', 'డేటా ఎన్‌క్రిప్ట్ చేయబడింది'));
 }
 
 // ---------- Navigation ----------
@@ -191,6 +194,9 @@ function showPage(id) {
 function renderCurrentPage() {
   const fns = { dashboard: renderDashboard, mycase: renderMyCase, cases: renderCaseStatus, guide: renderGuide, redflags: renderRedFlags, attorney: renderAttorney, analyzer: renderAnalyzer, drafts: renderDrafts, nearby: renderNearby, rights: renderRights, helpline: renderHelpline };
   $('mainContent').innerHTML = `<div class="page">${(fns[currentPage] || renderDashboard)()}</div>`;
+  if (currentPage === 'mycase') afterMyCaseRender();
+  if (currentPage === 'analyzer') afterAnalyzerRender();
+  if (currentPage === 'attorney') renderLogs();
 }
 
 // ---------- Toast / Modal ----------
@@ -204,12 +210,9 @@ function showModal(html) { $('modalContent').innerHTML = html; $('modal').classL
 
 function setupOfflineListener() {
   const banner = $('offlineBanner');
-  const update = () => {
-    if (navigator.onLine) { banner.classList.remove('show'); }
-    else { banner.classList.add('show'); }
-  };
-  window.addEventListener('online', () => { update(); toast('🟢 ' + L('Back online', 'ऑनलाइन')); });
-  window.addEventListener('offline', () => { update(); toast('📡 ' + L('Offline mode', 'ऑफलाइन मोड'), 'warning'); });
+  const update = () => { banner.classList.toggle('show', !navigator.onLine); };
+  window.addEventListener('online', () => { update(); toast('🟢 ' + L('Back online', 'ऑनलाइन', 'ఆన్‌లైన్‌లో ఉన్నారు')); });
+  window.addEventListener('offline', () => { update(); toast('📡 ' + L('Offline mode', 'ऑफलाइन मोड', 'ఆఫ్‌లైన్ మోడ్'), 'warning'); });
   update();
 }
 
@@ -219,10 +222,10 @@ function setupOfflineListener() {
 function renderDashboard() {
   const st = currentState ? STATES_UTS[currentState] : null;
   return `
-    <h1 class="page-title">⚖️ ${L('Welcome to NyayaSahayak', 'न्यायसहायक में आपका स्वागत है')}</h1>
-    <p class="page-subtitle">${L('Free legal help for every citizen — private, offline, in your language', 'हर नागरिक के लिए मुफ्त कानूनी मदद — निजी, ऑफलाइन, आपकी भाषा में')}</p>
+    <h1 class="page-title">⚖️ ${L('Welcome to NyayaSahayak', 'न्यायसहायक में आपका स्वागत है', 'న్యాయసహాయక్‌కు స్వాగతం')}</h1>
+    <p class="page-subtitle">${L('Free legal help for every citizen — private, offline, in your language', 'हर नागरिक के लिए मुफ्त कानूनी मदद — निजी, ऑफलाइन, आपकी भाषा में', 'ప్రతి పౌరుడికి ఉచిత న్యాయ సహాయం — గోప్యం, ఆఫ్‌లైన్, మీ భాషలో')}</p>
     ${st ? `<div class="alert alert-info"><strong>📍 ${esc(st.name)}</strong>${currentDistrict ? ` › ${esc(currentDistrict)}` : ''}<br>🏛️ ${esc(st.hc)} &nbsp;|&nbsp; 📜 ${esc(st.landLaw)}${st.portal ? `<br>🌐 <a href="${st.portal}" target="_blank" rel="noopener">${st.portal}</a>` : ''}</div>`
-      : `<div class="alert alert-warning">⚠️ ${L('Please select your State (top-right) for local court & law info', 'ऊपर दाईं ओर अपना राज्य चुनें')}</div>`}
+      : `<div class="alert alert-warning">⚠️ ${L('Please select your State (top-right) for local court & law info', 'ऊपर दाईं ओर अपना राज्य चुनें', 'స్థానిక కోర్టు & చట్ట సమాచారం కోసం మీ రాష్ట్రాన్ని (కుడి పైన) ఎంచుకోండి')}</div>`}
     <div class="grid">
       ${PAGES.filter(p => p.id !== 'dashboard').map(p => `
         <div class="feature-card" onclick="NS.showPage('${p.id}')">
@@ -232,36 +235,36 @@ function renderDashboard() {
         </div>`).join('')}
     </div>
     <div class="card">
-      <h3 class="card-title">🆘 ${L('Emergency Helplines', 'आपातकालीन हेल्पलाइन')}</h3>
+      <h3 class="card-title">🆘 ${L('Emergency Helplines', 'आपातकालीन हेल्पलाइन', 'అత్యవసర హెల్ప్‌లైన్‌లు')}</h3>
       <div class="grid">
         ${emergencyNumbers().map(n => `<div><strong>${esc(n.label)}</strong><p><a class="emergency-num" href="tel:${n.num}">${n.num}</a></p></div>`).join('')}
       </div>
     </div>
-    <div class="alert alert-success"><strong>🛡️ ${L('Private by design', 'सुरक्षित')}:</strong> ${L('All your data stays on this device. No servers, no tracking. Tap the lock icon to encrypt with a PIN.', 'सारा डेटा इसी डिवाइस पर रहता है। कोई सर्वर नहीं। PIN से एन्क्रिप्ट करें।')}</div>`;
+    <div class="alert alert-success"><strong>🛡️ ${L('Private by design', 'सुरक्षित', 'డిజైన్ ద్వారా గోప్యం')}:</strong> ${L('All your data stays on this device. No servers, no tracking. Tap the lock icon to encrypt with a PIN.', 'सारा डेटा इसी डिवाइस पर रहता है। कोई सर्वर नहीं। PIN से एन्क्रिप्ट करें।', 'మీ డేటా అంతా ఈ పరికరంలోనే ఉంటుంది. సర్వర్‌లు లేవు, ట్రాకింగ్ లేదు. PINతో ఎన్‌క్రిప్ట్ చేయడానికి లాక్ చిహ్నాన్ని నొక్కండి.')}</div>`;
 }
 function featureDesc(id) {
   const d = {
-    mycase: L('Upload & track your case', 'मामला अपलोड व ट्रैक करें'),
-    cases: L('Check case status on eCourts', 'eCourts पर स्थिति देखें'),
-    guide: L('3 paths: DIY / Hybrid / Attorney', '3 रास्ते'),
-    redflags: L('Detect attorney fraud early', 'वकील धोखाधड़ी पकड़ें'),
-    attorney: L('Monitor your lawyer', 'वकील की निगरानी'),
-    analyzer: L('AI notice analysis', 'AI नोटिस विश्लेषण'),
-    drafts: L('Auto-generate legal drafts', 'मसौदे बनाएं'),
-    nearby: L('Find help near you', 'पास की सहायता'),
-    rights: L('Know your legal rights', 'अपने अधिकार जानें'),
-    helpline: L('Free legal aid contacts', 'मुफ्त सहायता संपर्क')
+    mycase: L('Upload & track your case', 'मामला अपलोड व ट्रैक करें', 'మీ కేసును అప్‌లోడ్ & ట్రాక్ చేయండి'),
+    cases: L('Check case status on eCourts', 'eCourts पर स्थिति देखें', 'eCourtsలో కేసు స్థితిని చూడండి'),
+    guide: L('3 paths: DIY / Hybrid / Attorney', '3 रास्ते', '3 మార్గాలు: మీరే / మిశ్రమ / న్యాయవాది'),
+    redflags: L('Detect attorney fraud early', 'वकील धोखाधड़ी पकड़ें', 'న్యాయవాది మోసాన్ని ముందుగా గుర్తించండి'),
+    attorney: L('Monitor your lawyer', 'वकील की निगरानी', 'మీ న్యాయవాదిని పర్యవేక్షించండి'),
+    analyzer: L('AI notice analysis', 'AI नोटिस विश्लेषण', 'AI నోటీసు విశ్లేషణ'),
+    drafts: L('Auto-generate legal drafts', 'मसौदे बनाएं', 'న్యాయ ముసాయిదాలను రూపొందించండి'),
+    nearby: L('Find help near you', 'पास की सहायता', 'మీ దగ్గర సహాయం కనుగొనండి'),
+    rights: L('Know your legal rights', 'अपने अधिकार जानें', 'మీ న్యాయ హక్కులను తెలుసుకోండి'),
+    helpline: L('Free legal aid contacts', 'मुफ्त सहायता संपर्क', 'ఉచిత న్యాయ సహాయ సంప్రదింపులు')
   };
   return d[id] || '';
 }
 function emergencyNumbers() {
   return [
-    { label: L('Police', 'पुलिस'), num: '100' },
+    { label: L('Police', 'पुलिस', 'పోలీస్'), num: '100' },
     { label: 'NALSA', num: '15100' },
-    { label: L('Women', 'महिला'), num: '181' },
-    { label: L('Child', 'बाल'), num: '1098' },
-    { label: L('Cyber Crime', 'साइबर'), num: '1930' },
-    { label: L('Emergency', 'आपातकाल'), num: '112' }
+    { label: L('Women', 'महिला', 'మహిళలు'), num: '181' },
+    { label: L('Child', 'बाल', 'పిల్లలు'), num: '1098' },
+    { label: L('Cyber Crime', 'साइबर', 'సైబర్ నేరం'), num: '1930' },
+    { label: L('Emergency', 'आपातकाल', 'అత్యవసరం'), num: '112' }
   ];
 }
 
@@ -271,56 +274,56 @@ function emergencyNumbers() {
 function renderMyCase() {
   return `
     <h1 class="page-title">📋 ${t('mycase')}</h1>
-    <p class="page-subtitle">${L('Record your case securely on this device', 'अपना मामला सुरक्षित रूप से दर्ज करें')}</p>
+    <p class="page-subtitle">${L('Record your case securely on this device', 'अपना मामला सुरक्षित रूप से दर्ज करें', 'మీ కేసును ఈ పరికరంలో సురక్షితంగా నమోదు చేయండి')}</p>
     <div class="card">
       <div class="tabs">
-        <div class="tab active" data-ct="new" onclick="NS.switchCase('new', this)">➕ ${L('New', 'नया')}</div>
-        <div class="tab" data-ct="list" onclick="NS.switchCase('list', this)">📁 ${L('Saved', 'सहेजे')} (${cases.length})</div>
+        <div class="tab active" data-ct="new" onclick="NS.switchCase('new', this)">➕ ${L('New', 'नया', 'కొత్త')}</div>
+        <div class="tab" data-ct="list" onclick="NS.switchCase('list', this)">📁 ${L('Saved', 'सहेजे', 'సేవ్ చేసినవి')} (${cases.length})</div>
       </div>
       <div id="ct-new">
-        <div class="alert alert-info">🔒 ${L('Saved only on your device. Use the lock icon to add PIN encryption.', 'केवल आपके डिवाइस पर सहेजा जाता है।')}</div>
+        <div class="alert alert-info">🔒 ${L('Saved only on your device. Use the lock icon to add PIN encryption.', 'केवल आपके डिवाइस पर सहेजा जाता है।', 'మీ పరికరంలో మాత్రమే సేవ్ అవుతుంది. PIN ఎన్‌క్రిప్షన్ కోసం లాక్ చిహ్నాన్ని వాడండి.')}</div>
         <form id="caseForm">
           <div class="form-row">
-            <div class="form-group"><label>${L('Your Name', 'आपका नाम')}*</label><input class="form-control" id="c_name" required></div>
-            <div class="form-group"><label>${L('Mobile', 'मोबाइल')}</label><input type="tel" class="form-control" id="c_phone"></div>
+            <div class="form-group"><label>${L('Your Name', 'आपका नाम', 'మీ పేరు')}*</label><input class="form-control" id="c_name" required></div>
+            <div class="form-group"><label>${L('Mobile', 'मोबाइल', 'మొబైల్')}</label><input type="tel" class="form-control" id="c_phone"></div>
           </div>
-          <div class="form-group"><label>${L('Case Type', 'मामले का प्रकार')}*</label>
+          <div class="form-group"><label>${L('Case Type', 'मामले का प्रकार', 'కేసు రకం')}*</label>
             <select class="form-control" id="c_type" required>
-              <option value="">${L('Select', 'चुनें')}</option>
-              ${caseTypes().map(([v, en, hi]) => `<option value="${v}">${L(en, hi)}</option>`).join('')}
+              <option value="">${L('Select', 'चुनें', 'ఎంచుకోండి')}</option>
+              ${caseTypes().map(([v, en, hi, te]) => `<option value="${v}">${L(en, hi, te)}</option>`).join('')}
             </select></div>
-          <div class="form-group"><label>${L('Description', 'विवरण')}*</label><textarea class="form-control" id="c_desc" required placeholder="${L('What happened, when, where, who', 'क्या, कब, कहाँ, कौन')}"></textarea></div>
+          <div class="form-group"><label>${L('Description', 'विवरण', 'వివరణ')}*</label><textarea class="form-control" id="c_desc" required placeholder="${L('What happened, when, where, who', 'क्या, कब, कहाँ, कौन', 'ఏమి జరిగింది, ఎప్పుడు, ఎక్కడ, ఎవరు')}"></textarea></div>
           <div class="form-row">
-            <div class="form-group"><label>${L('Court', 'अदालत')}</label><input class="form-control" id="c_court" placeholder="${currentState ? esc(STATES_UTS[currentState].hc) : 'District Court'}"></div>
-            <div class="form-group"><label>${L('Case / CNR Number', 'केस / CNR नंबर')}</label><input class="form-control" id="c_num"></div>
+            <div class="form-group"><label>${L('Court', 'अदालत', 'కోర్టు')}</label><input class="form-control" id="c_court" placeholder="${currentState ? esc(STATES_UTS[currentState].hc) : 'District Court'}"></div>
+            <div class="form-group"><label>${L('Case / CNR Number', 'केस / CNR नंबर', 'కేసు / CNR నంబర్')}</label><input class="form-control" id="c_num"></div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>${L('Has Attorney?', 'वकील है?')}</label>
+            <div class="form-group"><label>${L('Has Attorney?', 'वकील है?', 'న్యాయవాది ఉన్నారా?')}</label>
               <select class="form-control" id="c_hasAtt" onchange="document.getElementById('attFields').style.display=this.value==='yes'?'block':'none'">
-                <option value="no">${L('No', 'नहीं')}</option><option value="yes">${L('Yes', 'हाँ')}</option>
+                <option value="no">${L('No', 'नहीं', 'లేదు')}</option><option value="yes">${L('Yes', 'हाँ', 'అవును')}</option>
               </select></div>
-            <div class="form-group"><label>${L('Budget', 'बजट')} (₹)</label><input type="number" class="form-control" id="c_budget"></div>
+            <div class="form-group"><label>${L('Budget', 'बजट', 'బడ్జెట్')} (₹)</label><input type="number" class="form-control" id="c_budget"></div>
           </div>
           <div id="attFields" style="display:none">
             <div class="form-row">
-              <div class="form-group"><label>${L('Attorney Name', 'वकील का नाम')}</label><input class="form-control" id="c_attName"></div>
-              <div class="form-group"><label>${L('Enrollment No.', 'पंजीकरण संख्या')}</label><input class="form-control" id="c_attEnroll"></div>
+              <div class="form-group"><label>${L('Attorney Name', 'वकील का नाम', 'న్యాయవాది పేరు')}</label><input class="form-control" id="c_attName"></div>
+              <div class="form-group"><label>${L('Enrollment No.', 'पंजीकरण संख्या', 'నమోదు నంబర్')}</label><input class="form-control" id="c_attEnroll"></div>
             </div>
             <div class="form-row">
-              <div class="form-group"><label>${L('Fee', 'फीस')} (₹)</label><input type="number" class="form-control" id="c_attFee"></div>
-              <div class="form-group"><label>${L('Payment', 'भुगतान')}</label>
+              <div class="form-group"><label>${L('Fee', 'फीस', 'ఫీజు')} (₹)</label><input type="number" class="form-control" id="c_attFee"></div>
+              <div class="form-group"><label>${L('Payment', 'भुगतान', 'చెల్లింపు')}</label>
                 <select class="form-control" id="c_attPay">
-                  <option value="unpaid">${L('Unpaid', 'अभी नहीं')}</option><option value="partial">${L('Partial', 'आंशिक')}</option><option value="full">${L('Full', 'पूरा')}</option>
+                  <option value="unpaid">${L('Unpaid', 'अभी नहीं', 'చెల్లించలేదు')}</option><option value="partial">${L('Partial', 'आंशिक', 'పాక్షికం')}</option><option value="full">${L('Full', 'पूरा', 'పూర్తి')}</option>
                 </select></div>
             </div>
           </div>
-          <div class="form-group"><label>${L('Attach Documents (names stored locally)', 'दस्तावेज संलग्न करें')}</label>
+          <div class="form-group"><label>${L('Attach Documents (names stored locally)', 'दस्तावेज संलग्न करें', 'పత్రాలను జతచేయండి (పేర్లు స్థానికంగా నిల్వ)')}</label>
             <div class="upload-zone" onclick="document.getElementById('docInput').click()">
-              <div class="upload-icon">📁</div><p>${L('Click to select files', 'फाइल चुनने के लिए क्लिक करें')}</p>
+              <div class="upload-icon">📁</div><p>${L('Click to select files', 'फाइल चुनने के लिए क्लिक करें', 'ఫైల్‌లను ఎంచుకోవడానికి క్లిక్ చేయండి')}</p>
               <input type="file" id="docInput" hidden multiple>
             </div>
             <div id="docList"></div></div>
-          <button type="submit" class="btn btn-primary">💾 ${L('Save Case', 'मामला सहेजें')}</button>
+          <button type="submit" class="btn btn-primary">💾 ${L('Save Case', 'मामला सहेजें', 'కేసును సేవ్ చేయండి')}</button>
         </form>
       </div>
       <div id="ct-list" style="display:none"><div id="caseListContainer"></div></div>
@@ -328,7 +331,7 @@ function renderMyCase() {
     <div id="caseAnalysisResult"></div>`;
 }
 function caseTypes() {
-  return [['civil', 'Civil', 'सिविल'], ['criminal', 'Criminal', 'आपराधिक'], ['family', 'Family', 'पारिवारिक'], ['property', 'Property', 'संपत्ति'], ['consumer', 'Consumer', 'उपभोक्ता'], ['labor', 'Labor', 'श्रम'], ['revenue', 'Revenue', 'राजस्व'], ['cheque', 'Cheque Bounce', 'चेक बाउंस'], ['rental', 'Rental', 'किराया']];
+  return [['civil', 'Civil', 'सिविल', 'సివిల్'], ['criminal', 'Criminal', 'आपराधिक', 'క్రిమినల్'], ['family', 'Family', 'पारिवारिक', 'కుటుంబ'], ['property', 'Property', 'संपत्ति', 'ఆస్తి'], ['consumer', 'Consumer', 'उपभोक्ता', 'వినియోగదారు'], ['labor', 'Labor', 'श्रम', 'కార్మిక'], ['revenue', 'Revenue', 'राजस्व', 'రెవెన్యూ'], ['cheque', 'Cheque Bounce', 'चेक बाउंस', 'చెక్ బౌన్స్'], ['rental', 'Rental', 'किराया', 'అద్దె']];
 }
 
 function afterMyCaseRender() {
@@ -358,7 +361,7 @@ async function saveCaseForm(e) {
   };
   cases.push(c); await saveCases();
   currentDocs = []; currentCase = c;
-  toast('✅ ' + L('Case saved', 'मामला सहेजा') + ': ' + c.id);
+  toast('✅ ' + L('Case saved', 'मामला सहेजा', 'కేసు సేవ్ చేయబడింది') + ': ' + c.id);
   const res = $('caseAnalysisResult');
   res.innerHTML = renderCaseAnalysis(c);
   res.scrollIntoView({ behavior: 'smooth' });
@@ -367,30 +370,30 @@ async function saveCaseForm(e) {
 function renderCaseAnalysis(c) {
   const issues = [];
   if (c.hasAtt === 'yes' && c.att) {
-    if (!c.att.enroll) issues.push({ sev: 'critical', txt: L('No Bar Council enrollment number', 'पंजीकरण संख्या नहीं'), action: L('Verify on barcouncilofindia.org', 'बार काउंसिल में सत्यापित करें') });
-    if (c.att.pay === 'full') issues.push({ sev: 'high', txt: L('Full fee paid — monitor work closely', 'पूरा भुगतान - काम की निगरानी करें'), action: L('Log every update in Attorney Monitor', 'हर अपडेट लॉग करें') });
+    if (!c.att.enroll) issues.push({ sev: 'critical', txt: L('No Bar Council enrollment number', 'पंजीकरण संख्या नहीं', 'బార్ కౌన్సిల్ నమోదు నంబర్ లేదు'), action: L('Verify on barcouncilofindia.org', 'बार काउंसिल में सत्यापित करें', 'barcouncilofindia.orgలో ధృవీకరించండి') });
+    if (c.att.pay === 'full') issues.push({ sev: 'high', txt: L('Full fee paid — monitor work closely', 'पूरा भुगतान - काम की निगरानी करें', 'పూర్తి ఫీజు చెల్లించారు — పనిని నిశితంగా గమనించండి'), action: L('Log every update in Attorney Monitor', 'हर अपडेट लॉग करें', 'ప్రతి అప్‌డేట్‌ను న్యాయవాది మానిటర్‌లో నమోదు చేయండి') });
   }
   return `<div class="card">
-    <h3 class="card-title">🔍 ${L('Quick Analysis', 'त्वरित विश्लेषण')} — ${c.id}</h3>
+    <h3 class="card-title">🔍 ${L('Quick Analysis', 'त्वरित विश्लेषण', 'త్వరిత విశ్లేషణ')} — ${c.id}</h3>
     <div class="grid">
-      <div><strong>${L('Type', 'प्रकार')}:</strong> ${esc(c.type)}</div>
-      <div><strong>${L('Court', 'अदालत')}:</strong> ${esc(c.court || 'TBD')}</div>
-      <div><strong>${L('Documents', 'दस्तावेज')}:</strong> ${c.docs.length}</div>
-      <div><strong>${L('Attorney', 'वकील')}:</strong> ${c.hasAtt === 'yes' ? esc(c.att.name || 'Yes') : '❌'}</div>
+      <div><strong>${L('Type', 'प्रकार', 'రకం')}:</strong> ${esc(c.type)}</div>
+      <div><strong>${L('Court', 'अदालत', 'కోర్టు')}:</strong> ${esc(c.court || 'TBD')}</div>
+      <div><strong>${L('Documents', 'दस्तावेज', 'పత్రాలు')}:</strong> ${c.docs.length}</div>
+      <div><strong>${L('Attorney', 'वकील', 'న్యాయవాది')}:</strong> ${c.hasAtt === 'yes' ? esc(c.att.name || 'Yes') : '❌'}</div>
     </div>
-    ${issues.length ? issues.map(i => `<div class="${i.sev === 'critical' ? 'red-flag' : 'yellow-flag'}"><strong>${i.txt}</strong><br>✅ ${i.action}</div>`).join('') : `<div class="green-flag">✅ ${L('No immediate issues detected', 'कोई तत्काल समस्या नहीं')}</div>`}
+    ${issues.length ? issues.map(i => `<div class="${i.sev === 'critical' ? 'red-flag' : 'yellow-flag'}"><strong>${i.txt}</strong><br>✅ ${i.action}</div>`).join('') : `<div class="green-flag">✅ ${L('No immediate issues detected', 'कोई तत्काल समस्या नहीं', 'తక్షణ సమస్యలు ఏవీ కనుగొనబడలేదు')}</div>`}
     <div class="btn-group mt-1">
-      <button class="btn btn-primary" onclick="NS.showPage('guide')">🛣️ ${L('See Step Guide', 'मार्गदर्शन देखें')}</button>
-      ${c.hasAtt === 'yes' ? `<button class="btn btn-danger" onclick="NS.showPage('redflags')">🚨 ${L('Check Attorney', 'वकील जाँच')}</button>` : ''}
+      <button class="btn btn-primary" onclick="NS.showPage('guide')">🛣️ ${L('See Step Guide', 'मार्गदर्शन देखें', 'దశల మార్గదర్శిని చూడండి')}</button>
+      ${c.hasAtt === 'yes' ? `<button class="btn btn-danger" onclick="NS.showPage('redflags')">🚨 ${L('Check Attorney', 'वकील जाँच', 'న్యాయవాదిని తనిఖీ చేయండి')}</button>` : ''}
     </div></div>`;
 }
 function renderCaseList() {
   const el = $('caseListContainer'); if (!el) return;
-  if (!cases.length) { el.innerHTML = `<p style="text-align:center;color:var(--text-light);padding:1rem">${L('No saved cases yet', 'कोई मामला नहीं')}</p>`; return; }
+  if (!cases.length) { el.innerHTML = `<p style="text-align:center;color:var(--text-light);padding:1rem">${L('No saved cases yet', 'कोई मामला नहीं', 'ఇంకా సేవ్ చేసిన కేసులు లేవు')}</p>`; return; }
   el.innerHTML = cases.map(x => `<div class="case-item">
     <div><strong>${esc(x.id)}</strong> — ${esc((x.type || '').toUpperCase())}<br><small>${esc(x.name)} | ${esc(x.court || 'Court TBD')}</small></div>
     <div class="btn-group">
-      <button class="btn btn-primary btn-sm" onclick="NS.openCase('${x.id}')">📂 ${L('Open', 'खोलें')}</button>
+      <button class="btn btn-primary btn-sm" onclick="NS.openCase('${x.id}')">📂 ${L('Open', 'खोलें', 'తెరవండి')}</button>
       <button class="btn btn-danger btn-sm" onclick="NS.deleteCase('${x.id}')">🗑️</button>
     </div></div>`).join('');
 }
@@ -402,26 +405,26 @@ function renderCaseStatus() {
   const targets = lookupTargets(currentCase?.type);
   return `
     <h1 class="page-title">🔎 ${t('cases')}</h1>
-    <p class="page-subtitle">${L('Track your case on official government portals', 'सरकारी पोर्टल पर अपना मामला ट्रैक करें')}</p>
-    ${currentCase ? `<div class="card"><h3 class="card-title">📋 ${esc(currentCase.id)}</h3>${statusTable(statusSummary(currentCase))}</div>` : `<div class="alert alert-info">${L('Add a case in "My Case" to save its details, or use the official links below directly.', 'विवरण सहेजने के लिए मामला जोड़ें, या नीचे दिए लिंक उपयोग करें।')}</div>`}
+    <p class="page-subtitle">${L('Track your case on official government portals', 'सरकारी पोर्टल पर अपना मामला ट्रैक करें', 'అధికారిక ప్రభుత్వ పోర్టల్‌లలో మీ కేసును ట్రాక్ చేయండి')}</p>
+    ${currentCase ? `<div class="card"><h3 class="card-title">📋 ${esc(currentCase.id)}</h3>${statusTable(statusSummary(currentCase))}</div>` : `<div class="alert alert-info">${L('Add a case in "My Case" to save its details, or use the official links below directly.', 'विवरण सहेजने के लिए मामला जोड़ें, या नीचे दिए लिंक उपयोग करें।', '"నా కేసు"లో కేసు జోడించి వివరాలు సేవ్ చేయండి, లేదా క్రింది అధికారిక లింక్‌లను నేరుగా ఉపయోగించండి.')}</div>`}
     <div class="card">
-      <h3 class="card-title">🏛️ ${L('Official Case Status Portals', 'आधिकारिक पोर्टल')}</h3>
-      <p style="font-size:.85rem;color:var(--text-light);margin-bottom:.6rem">${L('These open the government eCourts sites in a new tab. Search by CNR number, case number or party name.', 'ये सरकारी eCourts साइट खोलते हैं। CNR, केस नंबर या नाम से खोजें।')}</p>
-      ${targets.map(x => `<div class="nearby-card"><div><h4>${esc(x.label)}</h4><p style="font-size:.82rem;color:var(--text-light)">${esc(x.note)}</p></div><a class="btn btn-primary btn-sm" href="${x.url}" target="_blank" rel="noopener">${L('Open', 'खोलें')} →</a></div>`).join('')}
+      <h3 class="card-title">🏛️ ${L('Official Case Status Portals', 'आधिकारिक पोर्टल', 'అధికారిక కేసు స్థితి పోర్టల్‌లు')}</h3>
+      <p style="font-size:.85rem;color:var(--text-light);margin-bottom:.6rem">${L('These open the government eCourts sites in a new tab. Search by CNR number, case number or party name.', 'ये सरकारी eCourts साइट खोलते हैं। CNR, केस नंबर या नाम से खोजें।', 'ఇవి ప్రభుత్వ eCourts సైట్‌లను కొత్త ట్యాబ్‌లో తెరుస్తాయి. CNR నంబర్, కేసు నంబర్ లేదా పార్టీ పేరుతో వెతకండి.')}</p>
+      ${targets.map(x => `<div class="nearby-card"><div><h4>${esc(x.label)}</h4><p style="font-size:.82rem;color:var(--text-light)">${esc(x.note)}</p></div><a class="btn btn-primary btn-sm" href="${x.url}" target="_blank" rel="noopener">${L('Open', 'खोलें', 'తెరవండి')} →</a></div>`).join('')}
     </div>
     <div class="card">
-      <h3 class="card-title">🔢 ${L('CNR Number Checker', 'CNR जाँच')}</h3>
-      <p style="font-size:.85rem;color:var(--text-light)">${L('CNR is a unique 16-character case ID (e.g. DLHC01-000123-2024).', 'CNR एक अद्वितीय 16-अक्षर केस ID है।')}</p>
+      <h3 class="card-title">🔢 ${L('CNR Number Checker', 'CNR जाँच', 'CNR నంబర్ తనిఖీ')}</h3>
+      <p style="font-size:.85rem;color:var(--text-light)">${L('CNR is a unique 16-character case ID (e.g. DLHC01-000123-2024).', 'CNR एक अद्वितीय 16-अक्षर केस ID है।', 'CNR అనేది ప్రత్యేకమైన 16-అక్షరాల కేసు ID (ఉదా. DLHC01-000123-2024).')}</p>
       <div class="form-row">
         <div class="form-group"><input class="form-control" id="cnrIn" placeholder="XXXX00000000000"></div>
-        <div class="form-group"><button class="btn btn-primary" onclick="NS.checkCNR()">${L('Validate', 'जाँचें')}</button></div>
+        <div class="form-group"><button class="btn btn-primary" onclick="NS.checkCNR()">${L('Validate', 'जाँचें', 'ధృవీకరించండి')}</button></div>
       </div>
       <div id="cnrResult"></div>
     </div>`;
 }
 function statusTable(s) {
-  const rows = [[L('CNR', 'CNR'), s.cnr], [L('Court', 'अदालत'), s.court], [L('Case No.', 'केस नंबर'), s.caseNumber], [L('Next Date', 'अगली तारीख'), s.nextDate], [L('Stage', 'चरण'), s.stage]];
-  return `<div class="grid">${rows.map(([k, v]) => `<div><strong>${k}:</strong> ${esc(v)}</div>`).join('')}</div>`;
+  const rows = [[L('CNR', 'CNR', 'CNR'), s.cnr], [L('Court', 'अदालत', 'కోర్టు'), s.court], [L('Case No.', 'केस नंबर', 'కేసు నం.'), s.caseNumber], [L('Next Date', 'अगली तारीख', 'తదుపరి తేదీ'), s.nextDate], [L('Stage', 'चरण', 'దశ'), s.stage]];
+  return `<div class="grid">${rows.map(([k, v]) => `<div><strong>${esc(k)}:</strong> ${esc(v)}</div>`).join('')}</div>`;
 }
 
 // ============================================
@@ -429,34 +432,34 @@ function statusTable(s) {
 // ============================================
 function renderGuide() {
   if (!currentCase && cases.length) currentCase = cases[cases.length - 1];
-  if (!currentCase) return `<h1 class="page-title">🛣️ ${t('guide')}</h1><div class="alert alert-warning">${L('Add a case first to get a personalized guide', 'व्यक्तिगत मार्गदर्शन के लिए पहले मामला जोड़ें')}</div><button class="btn btn-primary" onclick="NS.showPage('mycase')">📋 ${L('Add Case', 'मामला जोड़ें')}</button>`;
+  if (!currentCase) return `<h1 class="page-title">🛣️ ${t('guide')}</h1><div class="alert alert-warning">${L('Add a case first to get a personalized guide', 'व्यक्तिगत मार्गदर्शन के लिए पहले मामला जोड़ें', 'వ్యక్తిగత మార్గదర్శిని పొందడానికి ముందుగా కేసు జోడించండి')}</div><button class="btn btn-primary" onclick="NS.showPage('mycase')">📋 ${L('Add Case', 'मामला जोड़ें', 'కేసు జోడించండి')}</button>`;
   return `
     <h1 class="page-title">🛣️ ${t('guide')}</h1>
-    <p class="page-subtitle">${L('Choose how you want to handle', 'अपना रास्ता चुनें')} — ${esc(currentCase.id)}</p>
-    <div class="card"><h3 class="card-title">📋 ${esc(currentCase.id)}</h3><p>${L('Type', 'प्रकार')}: <strong>${esc(currentCase.type)}</strong> | ${L('Court', 'अदालत')}: <strong>${esc(currentCase.court || 'TBD')}</strong></p></div>
+    <p class="page-subtitle">${L('Choose how you want to handle', 'अपना रास्ता चुनें', 'మీరు ఎలా వ్యవహరించాలనుకుంటున్నారో ఎంచుకోండి')} — ${esc(currentCase.id)}</p>
+    <div class="card"><h3 class="card-title">📋 ${esc(currentCase.id)}</h3><p>${L('Type', 'प्रकार', 'రకం')}: <strong>${esc(currentCase.type)}</strong> | ${L('Court', 'अदालत', 'కోర్టు')}: <strong>${esc(currentCase.court || 'TBD')}</strong></p></div>
     <div class="grid">
-      <div class="path-card" onclick="NS.selectPath('diy')"><h4>🛠️ DIY</h4><p>${L('Handle yourself', 'स्वयं करें')}</p><div class="path-meta"><span>💰 ₹0-5K</span><span>⏰ 30-90 ${L('days', 'दिन')}</span></div></div>
-      <div class="path-card" onclick="NS.selectPath('hybrid')"><h4>🤝 Hybrid</h4><p>${L('Consult + self-file', 'परामर्श + स्वयं')}</p><div class="path-meta"><span>💰 ₹5K-25K</span><span>⏰ 30-60 ${L('days', 'दिन')}</span></div></div>
-      <div class="path-card" onclick="NS.selectPath('full')"><h4>👨‍⚖️ Full Attorney</h4><p>${L('Lawyer does all', 'पूरा वकील')}</p><div class="path-meta"><span>💰 ₹25K+</span><span>⏰ 60-180 ${L('days', 'दिन')}</span></div></div>
+      <div class="path-card" onclick="NS.selectPath('diy')"><h4>🛠️ DIY</h4><p>${L('Handle yourself', 'स्वयं करें', 'మీరే చేయండి')}</p><div class="path-meta"><span>💰 ₹0-5K</span><span>⏰ 30-90 ${L('days', 'दिन', 'రోజులు')}</span></div></div>
+      <div class="path-card" onclick="NS.selectPath('hybrid')"><h4>🤝 Hybrid</h4><p>${L('Consult + self-file', 'परामर्श + स्वयं', 'సలహా + మీరే దాఖలు')}</p><div class="path-meta"><span>💰 ₹5K-25K</span><span>⏰ 30-60 ${L('days', 'दिन', 'రోజులు')}</span></div></div>
+      <div class="path-card" onclick="NS.selectPath('full')"><h4>👨‍⚖️ Full Attorney</h4><p>${L('Lawyer does all', 'पूरा वकील', 'న్యాయవాది అంతా చేస్తారు')}</p><div class="path-meta"><span>💰 ₹25K+</span><span>⏰ 60-180 ${L('days', 'दिन', 'రోజులు')}</span></div></div>
     </div>
     <div id="pathContent" class="mt-2"></div>`;
 }
 function pathSteps(path) {
   const s = {
-    diy: [['Gather Documents', 'दस्तावेज इकट्ठा करें', 'All papers in one place', 'सभी कागजात एक जगह', '1-2 days'], ['Research Online', 'ऑनलाइन शोध', 'Check laws & precedents', 'कानून देखें', '2-3 days'], ['Prepare Draft', 'मसौदा तैयार करें', 'Use our Drafts tool', 'ड्राफ्ट टूल उपयोग करें', '1 day'], ['File the Case', 'फाइल करें', 'Online or at court', 'ऑनलाइन या कोर्ट', '1 day'], ['Attend Hearings', 'सुनवाई', 'Attend all dates', 'सभी तारीखों पर जाएं', '']],
-    hybrid: [['Attorney Consultation', 'वकील परामर्श', 'One-time strategy meeting', 'रणनीति बैठक', '1 day'], ['Self Documents', 'स्वयं दस्तावेज', 'Forms & copies', 'फॉर्म, फोटोकॉपी', '3-5 days'], ['Attorney Review', 'वकील समीक्षा', 'Get draft checked', 'मसौदे की जाँच', '1-2 days'], ['File', 'फाइल', 'Online portal', 'ऑनलाइन पोर्टल', '1 day'], ['Hearing', 'सुनवाई', 'With attorney', 'वकील के साथ', '']],
-    full: [['Choose Attorney', 'वकील चुनें', 'Verify Bar Council ID', 'बार काउंसिल सत्यापित', '3-7 days'], ['Written Fee Agreement', 'फीस समझौता', 'Get it in writing', 'लिखित', '1 day'], ['Hand Over Docs', 'दस्तावेज सौंपें', 'Keep photocopies!', 'फोटोकॉपी रखें', '1 day'], ['Attorney Files', 'वकील फाइल करे', 'Track progress weekly', 'साप्ताहिक ट्रैक', '7-15 days'], ['Hearing', 'सुनवाई', 'You attend too', 'आप भी जाएं', '']]
+    diy: [['Gather Documents', 'दस्तावेज इकट्ठा करें', 'పత్రాలు సేకరించండి', 'All papers in one place', 'सभी कागजात एक जगह', 'అన్ని కాగితాలు ఒకచోట', '1-2 days'], ['Research Online', 'ऑनलाइन शोध', 'ఆన్‌లైన్‌లో పరిశోధించండి', 'Check laws & precedents', 'कानून देखें', 'చట్టాలు & పూర్వ తీర్పులు చూడండి', '2-3 days'], ['Prepare Draft', 'मसौदा तैयार करें', 'ముసాయిదా సిద్ధం చేయండి', 'Use our Drafts tool', 'ड्राफ्ट टूल उपयोग करें', 'మా ముసాయిదా సాధనం వాడండి', '1 day'], ['File the Case', 'फाइल करें', 'కేసు దాఖలు చేయండి', 'Online or at court', 'ऑनलाइन या कोर्ट', 'ఆన్‌లైన్ లేదా కోర్టులో', '1 day'], ['Attend Hearings', 'सुनवाई', 'విచారణలకు హాజరవ్వండి', 'Attend all dates', 'सभी तारीखों पर जाएं', 'అన్ని తేదీలకు హాజరవ్వండి', '']],
+    hybrid: [['Attorney Consultation', 'वकील परामर्श', 'న్యాయవాది సలహా', 'One-time strategy meeting', 'रणनीति बैठक', 'ఒకసారి వ్యూహ సమావేశం', '1 day'], ['Self Documents', 'स्वयं दस्तावेज', 'మీరే పత్రాలు', 'Forms & copies', 'फॉर्म, फोटोकॉपी', 'ఫారాలు & కాపీలు', '3-5 days'], ['Attorney Review', 'वकील समीक्षा', 'న్యాయవాది సమీక్ష', 'Get draft checked', 'मसौदे की जाँच', 'ముసాయిదాను తనిఖీ చేయించండి', '1-2 days'], ['File', 'फाइल', 'దాఖలు', 'Online portal', 'ऑनलाइन पोर्टल', 'ఆన్‌లైన్ పోర్టల్', '1 day'], ['Hearing', 'सुनवाई', 'విచారణ', 'With attorney', 'वकील के साथ', 'న్యాయవాదితో', '']],
+    full: [['Choose Attorney', 'वकील चुनें', 'న్యాయవాదిని ఎంచుకోండి', 'Verify Bar Council ID', 'बार काउंसिल सत्यापित', 'బార్ కౌన్సిల్ ID ధృవీకరించండి', '3-7 days'], ['Written Fee Agreement', 'फीस समझौता', 'లిఖిత ఫీజు ఒప్పందం', 'Get it in writing', 'लिखित', 'లిఖితపూర్వకంగా తీసుకోండి', '1 day'], ['Hand Over Docs', 'दस्तावेज सौंपें', 'పత్రాలు అప్పగించండి', 'Keep photocopies!', 'फोटोकॉपी रखें', 'ఫోటోకాపీలు ఉంచుకోండి!', '1 day'], ['Attorney Files', 'वकील फाइल करे', 'న్యాయవాది దాఖలు చేస్తారు', 'Track progress weekly', 'साप्ताहिक ट्रैक', 'ప్రతి వారం పురోగతిని ట్రాక్ చేయండి', '7-15 days'], ['Hearing', 'सुनवाई', 'విచారణ', 'You attend too', 'आप भी जाएं', 'మీరు కూడా హాజరవ్వండి', '']]
   };
   return s[path];
 }
 function selectPath(path) {
   const steps = pathSteps(path);
   $('pathContent').innerHTML = `
-    <div class="card"><h3 class="card-title">📍 ${L('Path', 'रास्ता')}: ${path.toUpperCase()}</h3>
-      <div class="stepper">${steps.map((s, i) => `<div class="step${i === 0 ? ' current' : ''}"><div class="step-title">${i + 1}. ${L(s[0], s[1])}</div><div class="step-content">${L(s[2], s[3])}</div>${s[4] ? `<div style="font-size:.78rem;color:var(--text-light);margin-top:.2rem">⏱️ ${s[4]}</div>` : ''}</div>`).join('')}</div>
-      <div class="alert alert-info mt-1"><strong>💡 ${L('Tips', 'टिप्स')}:</strong><ul><li>${L('Screenshot every step', 'हर कदम का स्क्रीनशॉट')}</li><li>${L('Add all dates to your calendar', 'तारीखें कैलेंडर में डालें')}</li><li>${L('Keep original documents safe', 'मूल दस्तावेज सुरक्षित रखें')}</li></ul></div>
+    <div class="card"><h3 class="card-title">📍 ${L('Path', 'रास्ता', 'మార్గం')}: ${path.toUpperCase()}</h3>
+      <div class="stepper">${steps.map((s, i) => `<div class="step${i === 0 ? ' current' : ''}"><div class="step-title">${i + 1}. ${L(s[0], s[1], s[2])}</div><div class="step-content">${L(s[3], s[4], s[5])}</div>${s[6] ? `<div style="font-size:.78rem;color:var(--text-light);margin-top:.2rem">⏱️ ${s[6]}</div>` : ''}</div>`).join('')}</div>
+      <div class="alert alert-info mt-1"><strong>💡 ${L('Tips', 'टिप्स', 'చిట్కాలు')}:</strong><ul><li>${L('Screenshot every step', 'हर कदम का स्क्रीनशॉट', 'ప్రతి దశ స్క్రీన్‌షాట్ తీసుకోండి')}</li><li>${L('Add all dates to your calendar', 'तारीखें कैलेंडर में डालें', 'అన్ని తేదీలను మీ క్యాలెండర్‌కు జోడించండి')}</li><li>${L('Keep original documents safe', 'मूल दस्तावेज सुरक्षित रखें', 'అసలు పత్రాలను సురక్షితంగా ఉంచండి')}</li></ul></div>
     </div>
-    <div class="card"><h3 class="card-title">📋 ${L('Document Checklist', 'दस्तावेज चेकलिस्ट')}</h3><ul>${docChecklist().map(d => `<li>☐ ${esc(d)}</li>`).join('')}</ul></div>`;
+    <div class="card"><h3 class="card-title">📋 ${L('Document Checklist', 'दस्तावेज चेकलिस्ट', 'పత్రాల చెక్‌లిస్ట్')}</h3><ul>${docChecklist().map(d => `<li>☐ ${esc(d)}</li>`).join('')}</ul></div>`;
 }
 function docChecklist() {
   const base = ['Identity Proof (Aadhaar/Voter ID)', 'Address Proof', 'Affidavit', 'Court Fee'];
@@ -470,23 +473,23 @@ function docChecklist() {
 function renderRedFlags() {
   return `
     <h1 class="page-title">🚨 ${t('redflags')}</h1>
-    <p class="page-subtitle">${L('Spot attorney fraud before it costs you', 'नुकसान से पहले वकील धोखाधड़ी पकड़ें')}</p>
-    <div class="alert alert-danger"><strong>⚠️ ${L('IMPORTANT', 'महत्वपूर्ण')}:</strong> ${L('Act immediately on any critical red flag', 'किसी भी गंभीर रेड फ्लैग पर तुरंत कार्रवाई')}</div>
+    <p class="page-subtitle">${L('Spot attorney fraud before it costs you', 'नुकसान से पहले वकील धोखाधड़ी पकड़ें', 'నష్టం జరగకముందే న్యాయవాది మోసాన్ని గుర్తించండి')}</p>
+    <div class="alert alert-danger"><strong>⚠️ ${L('IMPORTANT', 'महत्वपूर्ण', 'ముఖ్యమైనది')}:</strong> ${L('Act immediately on any critical red flag', 'किसी भी गंभीर रेड फ्लैग पर तुरंत कार्रवाई', 'ఏదైనా క్రిటికల్ రెడ్ ఫ్లాగ్‌పై వెంటనే చర్య తీసుకోండి')}</div>
     <div class="card">
-      <h3 class="card-title">🔍 ${L('Quick Self-Check', 'त्वरित जाँच')}</h3>
+      <h3 class="card-title">🔍 ${L('Quick Self-Check', 'त्वरित जाँच', 'త్వరిత స్వీయ-తనిఖీ')}</h3>
       <div class="form-row">
-        <div class="form-group"><label>${L('Gave Bar Council number?', 'बार काउंसिल नंबर दिया?')}</label><select class="form-control" id="rf1"><option value="no">${L('No', 'नहीं')}</option><option value="yes">${L('Yes', 'हाँ')}</option></select></div>
-        <div class="form-group"><label>${L('Written agreement?', 'लिखित समझौता?')}</label><select class="form-control" id="rf2"><option value="no">${L('No', 'नहीं')}</option><option value="yes">${L('Yes', 'हाँ')}</option></select></div>
-        <div class="form-group"><label>${L('Payment', 'भुगतान')}</label><select class="form-control" id="rf3"><option value="unpaid">${L('Unpaid', 'नहीं')}</option><option value="partial">${L('Partial', 'आंशिक')}</option><option value="full">${L('Full', 'पूरा')}</option></select></div>
-        <div class="form-group"><label>${L('Work progress', 'कार्य प्रगति')}</label><select class="form-control" id="rf4"><option value="nothing">${L('Nothing', 'कुछ नहीं')}</option><option value="little">${L('Little', 'कम')}</option><option value="good">${L('Good', 'अच्छा')}</option></select></div>
-        <div class="form-group"><label>${L('Days since hired', 'कितने दिन हुए')}</label><input type="number" class="form-control" id="rf5" placeholder="30"></div>
-        <div class="form-group"><label>${L('Guaranteed 100% win?', 'जीत की गारंटी?')}</label><select class="form-control" id="rf6"><option value="no">${L('No', 'नहीं')}</option><option value="yes">${L('Yes', 'हाँ')}</option></select></div>
+        <div class="form-group"><label>${L('Gave Bar Council number?', 'बार काउंसिल नंबर दिया?', 'బార్ కౌన్సిల్ నంబర్ ఇచ్చారా?')}</label><select class="form-control" id="rf1"><option value="no">${L('No', 'नहीं', 'లేదు')}</option><option value="yes">${L('Yes', 'हाँ', 'అవును')}</option></select></div>
+        <div class="form-group"><label>${L('Written agreement?', 'लिखित समझौता?', 'లిఖిత ఒప్పందం?')}</label><select class="form-control" id="rf2"><option value="no">${L('No', 'नहीं', 'లేదు')}</option><option value="yes">${L('Yes', 'हाँ', 'అవును')}</option></select></div>
+        <div class="form-group"><label>${L('Payment', 'भुगतान', 'చెల్లింపు')}</label><select class="form-control" id="rf3"><option value="unpaid">${L('Unpaid', 'नहीं', 'చెల్లించలేదు')}</option><option value="partial">${L('Partial', 'आंशिक', 'పాక్షికం')}</option><option value="full">${L('Full', 'पूरा', 'పూర్తి')}</option></select></div>
+        <div class="form-group"><label>${L('Work progress', 'कार्य प्रगति', 'పని పురోగతి')}</label><select class="form-control" id="rf4"><option value="nothing">${L('Nothing', 'कुछ नहीं', 'ఏమీ లేదు')}</option><option value="little">${L('Little', 'कम', 'కొంచెం')}</option><option value="good">${L('Good', 'अच्छा', 'బాగుంది')}</option></select></div>
+        <div class="form-group"><label>${L('Days since hired', 'कितने दिन हुए', 'నియమించి ఎన్ని రోజులు')}</label><input type="number" class="form-control" id="rf5" placeholder="30"></div>
+        <div class="form-group"><label>${L('Guaranteed 100% win?', 'जीत की गारंटी?', '100% గెలుపు గ్యారంటీ?')}</label><select class="form-control" id="rf6"><option value="no">${L('No', 'नहीं', 'లేదు')}</option><option value="yes">${L('Yes', 'हाँ', 'అవును')}</option></select></div>
       </div>
-      <button class="btn btn-danger" onclick="NS.analyzeRF()">🚨 ${L('Analyze', 'विश्लेषण')}</button>
+      <button class="btn btn-danger" onclick="NS.analyzeRF()">🚨 ${L('Analyze', 'विश्लेषण', 'విశ్లేషించండి')}</button>
       <div id="rfResult" class="mt-2"></div>
     </div>
-    <div class="card"><h3 class="card-title">📚 ${L('All Red Flags', 'सभी रेड फ्लैग्स')} (${RED_FLAGS_DB.length})</h3>
-      <details><summary style="cursor:pointer;font-weight:500">${L('View all warning signs', 'सभी देखें')}</summary>
+    <div class="card"><h3 class="card-title">📚 ${L('All Red Flags', 'सभी रेड फ्लैग्स', 'అన్ని రెడ్ ఫ్లాగ్‌లు')} (${RED_FLAGS_DB.length})</h3>
+      <details><summary style="cursor:pointer;font-weight:500">${L('View all warning signs', 'सभी देखें', 'అన్ని హెచ్చరిక సంకేతాలను చూడండి')}</summary>
         <div style="margin-top:.5rem">${RED_FLAGS_DB.map(rf => `<div class="${rf.severity === 'critical' ? 'red-flag' : rf.severity === 'high' ? 'yellow-flag' : 'green-flag'}"><strong>${esc(rf.title[currentLang] || rf.title.en)}</strong><p style="font-size:.85rem;margin-top:.3rem">${esc(rf.desc[currentLang] || rf.desc.en)}</p><div style="background:rgba(255,255,255,.5);padding:.3rem .5rem;border-radius:4px;margin-top:.3rem;font-size:.85rem">✅ ${esc(rf.action[currentLang] || rf.action.en)} <span class="badge badge-danger">${rf.severity.toUpperCase()}</span></div></div>`).join('')}</div>
       </details>
     </div>`;
@@ -499,8 +502,8 @@ async function analyzeRF() {
   if (v('rf3') === 'full' && v('rf4') === 'nothing' && parseInt(v('rf5') || 0) > 30) flags.push(RED_FLAGS_DB[2]);
   if (v('rf6') === 'yes') flags.push(RED_FLAGS_DB[5]);
   const res = $('rfResult');
-  if (!flags.length) { res.innerHTML = `<div class="green-flag">✅ ${L('No major red flags detected', 'कोई बड़ा रेड फ्लैग नहीं')}</div>`; return; }
-  res.innerHTML = `<h4>🚨 ${flags.length} ${L('red flags found', 'रेड फ्लैग मिले')}</h4>${flags.map(f => `<div class="red-flag"><div class="red-flag-title">${esc(f.title[currentLang] || f.title.en)}</div><div class="red-flag-desc">${esc(f.desc[currentLang] || f.desc.en)}</div><div class="red-flag-action">✅ ${esc(f.action[currentLang] || f.action.en)}</div></div>`).join('')}`;
+  if (!flags.length) { res.innerHTML = `<div class="green-flag">✅ ${L('No major red flags detected', 'कोई बड़ा रेड फ्लैग नहीं', 'పెద్ద రెడ్ ఫ్లాగ్‌లు ఏవీ కనుగొనబడలేదు')}</div>`; return; }
+  res.innerHTML = `<h4>🚨 ${flags.length} ${L('red flags found', 'रेड फ्लैग मिले', 'రెడ్ ఫ్లాగ్‌లు కనుగొనబడ్డాయి')}</h4>${flags.map(f => `<div class="red-flag"><div class="red-flag-title">${esc(f.title[currentLang] || f.title.en)}</div><div class="red-flag-desc">${esc(f.desc[currentLang] || f.desc.en)}</div><div class="red-flag-action">✅ ${esc(f.action[currentLang] || f.action.en)}</div></div>`).join('')}`;
   if (currentCase) { currentCase.redFlags = flags.map(f => f.id); await saveCases(); renderSidebar(); }
 }
 
@@ -509,42 +512,42 @@ async function analyzeRF() {
 // ============================================
 function renderAttorney() {
   if (!currentCase && cases.length) currentCase = cases.find(c => c.att) || cases[cases.length - 1];
-  if (!currentCase || !currentCase.att) return `<h1 class="page-title">👨‍⚖️ ${t('attorney')}</h1><div class="alert alert-info">${L('Add a case with attorney details first', 'पहले वकील के साथ मामला जोड़ें')}</div><button class="btn btn-primary" onclick="NS.showPage('mycase')">📋 ${L('Add Case', 'मामला जोड़ें')}</button>`;
+  if (!currentCase || !currentCase.att) return `<h1 class="page-title">👨‍⚖️ ${t('attorney')}</h1><div class="alert alert-info">${L('Add a case with attorney details first', 'पहले वकील के साथ मामला जोड़ें', 'ముందుగా న్యాయవాది వివరాలతో కేసు జోడించండి')}</div><button class="btn btn-primary" onclick="NS.showPage('mycase')">📋 ${L('Add Case', 'मामला जोड़ें', 'కేసు జోడించండి')}</button>`;
   const a = currentCase.att;
   return `
     <h1 class="page-title">👨‍⚖️ ${t('attorney')}</h1>
     <p class="page-subtitle">${esc(currentCase.id)}</p>
-    <div class="card"><h3 class="card-title">📋 ${L('Attorney Info', 'वकील जानकारी')}</h3>
+    <div class="card"><h3 class="card-title">📋 ${L('Attorney Info', 'वकील जानकारी', 'న్యాయవాది సమాచారం')}</h3>
       <div class="grid">
-        <div><strong>${L('Name', 'नाम')}:</strong> ${esc(a.name || '—')}</div>
-        <div><strong>${L('Enrollment', 'पंजीकरण')}:</strong> ${a.enroll ? esc(a.enroll) : '❌ ' + L('missing', 'नहीं')}</div>
-        <div><strong>${L('Fee', 'फीस')}:</strong> ₹${esc(a.fee || 'N/A')}</div>
-        <div><strong>${L('Payment', 'भुगतान')}:</strong> <span class="badge badge-${a.pay === 'full' ? 'success' : 'warning'}">${esc(a.pay)}</span></div>
+        <div><strong>${L('Name', 'नाम', 'పేరు')}:</strong> ${esc(a.name || '—')}</div>
+        <div><strong>${L('Enrollment', 'पंजीकरण', 'నమోదు')}:</strong> ${a.enroll ? esc(a.enroll) : '❌ ' + L('missing', 'नहीं', 'లేదు')}</div>
+        <div><strong>${L('Fee', 'फीस', 'ఫీజు')}:</strong> ₹${esc(a.fee || 'N/A')}</div>
+        <div><strong>${L('Payment', 'भुगतान', 'చెల్లింపు')}:</strong> <span class="badge badge-${a.pay === 'full' ? 'success' : 'warning'}">${esc(a.pay)}</span></div>
       </div>
-      <a class="btn btn-outline btn-sm mt-1" href="https://www.barcouncilofindia.org" target="_blank" rel="noopener">🔗 ${L('Verify on Bar Council', 'बार काउंसिल सत्यापित करें')}</a>
+      <a class="btn btn-outline btn-sm mt-1" href="https://www.barcouncilofindia.org" target="_blank" rel="noopener">🔗 ${L('Verify on Bar Council', 'बार काउंसिल सत्यापित करें', 'బార్ కౌన్సిల్‌లో ధృవీకరించండి')}</a>
     </div>
-    <div class="card"><h3 class="card-title">📝 ${L('Activity Log', 'गतिविधि लॉग')}</h3>
-      <div class="form-group"><label>${L('What happened?', 'क्या हुआ?')}</label><textarea class="form-control" id="log_act"></textarea></div>
-      <div class="form-group"><label>${L('Category', 'श्रेणी')}</label>
-        <select class="form-control" id="log_cat">${[['communication', 'Communication', 'संचार'], ['filing', 'Filing', 'फाइलिंग'], ['hearing', 'Hearing', 'सुनवाई'], ['payment', 'Payment', 'भुगतान'], ['concern', 'Concern', 'चिंता']].map(([v, en, hi]) => `<option value="${v}">${L(en, hi)}</option>`).join('')}</select></div>
-      <button class="btn btn-primary" onclick="NS.addLog()">➕ ${L('Add Log', 'जोड़ें')}</button>
+    <div class="card"><h3 class="card-title">📝 ${L('Activity Log', 'गतिविधि लॉग', 'కార్యకలాప లాగ్')}</h3>
+      <div class="form-group"><label>${L('What happened?', 'क्या हुआ?', 'ఏమి జరిగింది?')}</label><textarea class="form-control" id="log_act"></textarea></div>
+      <div class="form-group"><label>${L('Category', 'श्रेणी', 'వర్గం')}</label>
+        <select class="form-control" id="log_cat">${[['communication', 'Communication', 'संचार', 'సంభాషణ'], ['filing', 'Filing', 'फाइलिंग', 'దాఖలు'], ['hearing', 'Hearing', 'सुनवाई', 'విచారణ'], ['payment', 'Payment', 'भुगतान', 'చెల్లింపు'], ['concern', 'Concern', 'चिंता', 'ఆందోళన']].map(([v, en, hi, te]) => `<option value="${v}">${L(en, hi, te)}</option>`).join('')}</select></div>
+      <button class="btn btn-primary" onclick="NS.addLog()">➕ ${L('Add Log', 'जोड़ें', 'లాగ్ జోడించండి')}</button>
       <div id="logsList" class="mt-2"></div>
     </div>`;
 }
 function renderLogs() {
   const el = $('logsList'); if (!el) return;
   const logs = currentCase?.logs || [];
-  if (!logs.length) { el.innerHTML = `<p style="color:var(--text-light);text-align:center;padding:1rem">${L('No logs yet', 'कोई लॉग नहीं')}</p>`; return; }
+  if (!logs.length) { el.innerHTML = `<p style="color:var(--text-light);text-align:center;padding:1rem">${L('No logs yet', 'कोई लॉग नहीं', 'ఇంకా లాగ్‌లు లేవు')}</p>`; return; }
   el.innerHTML = logs.slice().reverse().map(l => `<div class="alert alert-info" style="font-size:.85rem"><strong>${esc(l.date)}</strong> <span class="badge badge-info">${esc(l.category)}</span><br>${esc(l.activity)}</div>`).join('');
 }
 async function addLog() {
   const act = $('log_act').value.trim();
-  if (!act) { toast('⚠️ ' + L('Enter activity', 'गतिविधि दर्ज करें'), 'warning'); return; }
+  if (!act) { toast('⚠️ ' + L('Enter activity', 'गतिविधि दर्ज करें', 'కార్యకలాపాన్ని నమోదు చేయండి'), 'warning'); return; }
   currentCase.logs = currentCase.logs || [];
   currentCase.logs.push({ date: new Date().toLocaleDateString('en-IN'), activity: act, category: $('log_cat').value });
   await saveCases();
   $('log_act').value = '';
-  toast('✅ ' + L('Log added', 'लॉग जोड़ा'));
+  toast('✅ ' + L('Log added', 'लॉग जोड़ा', 'లాగ్ జోడించబడింది'));
   renderLogs();
 }
 
@@ -554,15 +557,15 @@ async function addLog() {
 function renderAnalyzer() {
   return `
     <h1 class="page-title">🔍 ${t('analyzer')}</h1>
-    <p class="page-subtitle">${L('Paste a court notice — get a plain-language explanation instantly, on your device', 'नोटिस पेस्ट करें — तुरंत सरल भाषा में समझें')}</p>
+    <p class="page-subtitle">${L('Paste a court notice — get a plain-language explanation instantly, on your device', 'नोटिस पेस्ट करें — तुरंत सरल भाषा में समझें', 'కోర్టు నోటీసును పేస్ట్ చేయండి — మీ పరికరంలో వెంటనే సరళ భాషలో వివరణ పొందండి')}</p>
     <div class="card">
-      <div class="tabs"><div class="tab active" onclick="NS.switchAn('text', this)">⌨️ ${L('Text', 'टेक्स्ट')}</div><div class="tab" onclick="NS.switchAn('file', this)">📤 ${L('File', 'फाइल')}</div></div>
+      <div class="tabs"><div class="tab active" onclick="NS.switchAn('text', this)">⌨️ ${L('Text', 'टेक्स्ट', 'టెక్స్ట్')}</div><div class="tab" onclick="NS.switchAn('file', this)">📤 ${L('File', 'फाइल', 'ఫైల్')}</div></div>
       <div id="an-text">
-        <div class="form-group"><label>${L('Notice Text', 'नोटिस पाठ')}</label><textarea class="form-control" id="noticeTxt" style="min-height:130px" placeholder="${L('Paste the court notice / legal document text here', 'यहाँ नोटिस का पाठ पेस्ट करें')}"></textarea></div>
-        <button class="btn btn-primary" onclick="NS.analyze()">🔍 ${L('Analyze', 'विश्लेषण')}</button>
+        <div class="form-group"><label>${L('Notice Text', 'नोटिस पाठ', 'నోటీసు వచనం')}</label><textarea class="form-control" id="noticeTxt" style="min-height:130px" placeholder="${L('Paste the court notice / legal document text here', 'यहाँ नोटिस का पाठ पेस्ट करें', 'కోర్టు నోటీసు / న్యాయ పత్రం వచనాన్ని ఇక్కడ పేస్ట్ చేయండి')}"></textarea></div>
+        <button class="btn btn-primary" onclick="NS.analyze()">🔍 ${L('Analyze', 'विश्लेषण', 'విశ్లేషించండి')}</button>
       </div>
       <div id="an-file" style="display:none">
-        <div class="upload-zone" onclick="document.getElementById('fileIn').click()"><div class="upload-icon">📁</div><p>${L('Upload .txt for full analysis (PDF/image: metadata only)', '.txt अपलोड करें')}</p><input type="file" id="fileIn" hidden accept=".pdf,.jpg,.png,.txt"></div>
+        <div class="upload-zone" onclick="document.getElementById('fileIn').click()"><div class="upload-icon">📁</div><p>${L('Upload .txt for full analysis (PDF/image: metadata only)', '.txt अपलोड करें', 'పూర్తి విశ్లేషణ కోసం .txt అప్‌లోడ్ చేయండి (PDF/చిత్రం: మెటాడేటా మాత్రమే)')}</p><input type="file" id="fileIn" hidden accept=".pdf,.jpg,.png,.txt"></div>
       </div>
       <div id="analysisRes" class="mt-2" style="display:none"></div>
     </div>`;
@@ -576,36 +579,36 @@ function afterAnalyzerRender() {
       r.readAsText(f);
     } else {
       const res = $('analysisRes');
-      res.innerHTML = `<div class="result-box"><h4>📋 ${L('File received', 'फाइल प्राप्त')}</h4><p>${esc(f.name)} — ${(f.size / 1024).toFixed(1)} KB (${esc(f.type || 'unknown')})</p><div class="alert alert-info">${L('For full analysis, copy the text and paste it in the Text tab.', 'पूर्ण विश्लेषण के लिए टेक्स्ट कॉपी करके पेस्ट करें।')}</div></div>`;
+      res.innerHTML = `<div class="result-box"><h4>📋 ${L('File received', 'फाइल प्राप्त', 'ఫైల్ అందింది')}</h4><p>${esc(f.name)} — ${(f.size / 1024).toFixed(1)} KB (${esc(f.type || 'unknown')})</p><div class="alert alert-info">${L('For full analysis, copy the text and paste it in the Text tab.', 'पूर्ण विश्लेषण के लिए टेक्स्ट कॉपी करके पेस्ट करें।', 'పూర్తి విశ్లేషణ కోసం, వచనాన్ని కాపీ చేసి టెక్స్ట్ ట్యాబ్‌లో పేస్ట్ చేయండి.')}</div></div>`;
       res.style.display = 'block';
     }
   });
 }
 function runAnalyze() {
   const txt = $('noticeTxt').value.trim();
-  if (!txt) { toast('⚠️ ' + L('Enter some text', 'कुछ टेक्स्ट दर्ज करें'), 'warning'); return; }
-  const a = analyzeNotice(txt);
+  if (!txt) { toast('⚠️ ' + L('Enter some text', 'कुछ टेक्स्ट दर्ज करें', 'కొంత వచనాన్ని నమోదు చేయండి'), 'warning'); return; }
+  const a = analyzeNotice(txt, currentLang);
   const res = $('analysisRes');
   res.innerHTML = `<div class="result-box">
-    <h4>📋 ${L('Analysis Result', 'विश्लेषण परिणाम')}</h4>
+    <h4>📋 ${L('Analysis Result', 'विश्लेषण परिणाम', 'విశ్లేషణ ఫలితం')}</h4>
     <div class="grid mt-1">
-      <div><strong>${L('Language', 'भाषा')}:</strong> ${esc(a.lang)}</div>
-      <div><strong>${L('Category', 'श्रेणी')}:</strong> <span class="badge badge-info">${esc(a.category)}</span></div>
-      <div><strong>${L('Urgency', 'आपातकाल')}:</strong> <span class="badge badge-${a.urgency === 'high' ? 'danger' : 'success'}">${esc(a.urgency)}</span></div>
+      <div><strong>${L('Language', 'भाषा', 'భాష')}:</strong> ${esc(a.lang)}</div>
+      <div><strong>${L('Category', 'श्रेणी', 'వర్గం')}:</strong> <span class="badge badge-info">${esc(a.category)}</span></div>
+      <div><strong>${L('Urgency', 'आपातकाल', 'అత్యవసరత')}:</strong> <span class="badge badge-${a.urgency === 'high' ? 'danger' : 'success'}">${esc(a.urgency)}</span></div>
     </div>
-    ${a.dates.length ? `<p class="mt-1"><strong>${L('Dates found', 'तारीखें')}:</strong> ${a.dates.map(esc).join(', ')}</p>` : ''}
-    ${a.amounts.length ? `<p><strong>${L('Amounts', 'राशि')}:</strong> ${a.amounts.map(esc).join(', ')}</p>` : ''}
-    <h5 style="margin-top:.6rem">${L('In simple language', 'सरल भाषा में')}:</h5>
+    ${a.dates.length ? `<p class="mt-1"><strong>${L('Dates found', 'तारीखें', 'కనుగొన్న తేదీలు')}:</strong> ${a.dates.map(esc).join(', ')}</p>` : ''}
+    ${a.amounts.length ? `<p><strong>${L('Amounts', 'राशि', 'మొత్తాలు')}:</strong> ${a.amounts.map(esc).join(', ')}</p>` : ''}
+    <h5 style="margin-top:.6rem">${L('In simple language', 'सरल भाषा में', 'సరళ భాషలో')}:</h5>
     <div class="alert alert-${a.urgency === 'high' ? 'danger' : 'info'}">${esc(a.explanation)}</div>
-    <h5>${L('Recommendations', 'सुझाव')}:</h5>
+    <h5>${L('Recommendations', 'सुझाव', 'సిఫార్సులు')}:</h5>
     <ul>
-      <li>📅 ${L('Add every date to your calendar', 'तारीखें कैलेंडर में डालें')}</li>
-      <li>📁 ${L('Keep all documents ready', 'सभी दस्तावेज तैयार रखें')}</li>
-      <li>⚖️ ${L('Consult a lawyer or free legal aid', 'वकील या मुफ्त सहायता से सलाह लें')}</li>
-      ${a.urgency === 'high' ? `<li>🚨 <strong>${L('Time-sensitive — act now', 'समय-संवेदनशील — तुरंत कार्रवाई')}</strong></li>` : ''}
-      <li>📞 ${L('Free help', 'मुफ्त सहायता')}: <strong>15100</strong> (NALSA)</li>
+      <li>📅 ${L('Add every date to your calendar', 'तारीखें कैलेंडर में डालें', 'ప్రతి తేదీని మీ క్యాలెండర్‌కు జోడించండి')}</li>
+      <li>📁 ${L('Keep all documents ready', 'सभी दस्तावेज तैयार रखें', 'అన్ని పత్రాలను సిద్ధంగా ఉంచండి')}</li>
+      <li>⚖️ ${L('Consult a lawyer or free legal aid', 'वकील या मुफ्त सहायता से सलाह लें', 'న్యాయవాది లేదా ఉచిత న్యాయ సహాయాన్ని సంప్రదించండి')}</li>
+      ${a.urgency === 'high' ? `<li>🚨 <strong>${L('Time-sensitive — act now', 'समय-संवेदनशील — तुरंत कार्रवाई', 'సమయం కీలకం — ఇప్పుడే చర్య తీసుకోండి')}</strong></li>` : ''}
+      <li>📞 ${L('Free help', 'मुफ्त सहायता', 'ఉచిత సహాయం')}: <strong>15100</strong> (NALSA)</li>
     </ul>
-    <button class="btn btn-outline btn-sm mt-1" onclick="NS.speakText(${JSON.stringify(a.explanation)})">🔊 ${L('Read aloud', 'सुनें')}</button>
+    <button class="btn btn-outline btn-sm mt-1" onclick="NS.speakText(${JSON.stringify(a.explanation)})">🔊 ${L('Read aloud', 'सुनें', 'బిగ్గరగా చదవండి')}</button>
   </div>`;
   res.style.display = 'block';
 }
@@ -623,21 +626,21 @@ function renderDrafts() {
   const types = [['appeal', 'Appeal'], ['bail', 'Bail Application'], ['fir', 'FIR Complaint'], ['rti', 'RTI Application'], ['consumer', 'Consumer Complaint'], ['collector', 'Collector Request'], ['legalnotice', 'Legal Notice'], ['affidavit', 'Affidavit']];
   return `
     <h1 class="page-title">✍️ ${t('drafts')}</h1>
-    <p class="page-subtitle">${L('Generate a ready-to-print legal draft in seconds', 'सेकंडों में प्रिंट-तैयार मसौदा बनाएं')}</p>
-    <div class="grid">${types.map(([v, label]) => `<div class="feature-card" onclick="NS.openDraft('${v}','${label}')"><div class="feature-icon">📜</div><div class="feature-title">${esc(label)}</div><div class="feature-desc">${L('Generate', 'बनाएं')}</div></div>`).join('')}</div>
+    <p class="page-subtitle">${L('Generate a ready-to-print legal draft in seconds', 'सेकंडों में प्रिंट-तैयार मसौदा बनाएं', 'సెకన్లలో ప్రింట్‌కు సిద్ధమైన న్యాయ ముసాయిదాను రూపొందించండి')}</p>
+    <div class="grid">${types.map(([v, label]) => `<div class="feature-card" onclick="NS.openDraft('${v}','${label}')"><div class="feature-icon">📜</div><div class="feature-title">${esc(label)}</div><div class="feature-desc">${L('Generate', 'बनाएं', 'రూపొందించండి')}</div></div>`).join('')}</div>
     <div id="draftForm" class="card mt-1" style="display:none"></div>`;
 }
 function openDraft(type, title) {
   const F = $('draftForm');
   F.innerHTML = `<h3 class="card-title">📜 ${esc(title)}</h3>
     ${currentState ? `<div class="alert alert-info"><strong>📍 ${esc(STATES_UTS[currentState].name)}</strong></div>` : ''}
-    <div class="form-group"><label>${L('Your Name', 'आपका नाम')}*</label><input class="form-control" id="d_n"></div>
-    <div class="form-group"><label>${L('Address', 'पता')}*</label><textarea class="form-control" id="d_a"></textarea></div>
-    <div class="form-group"><label>${L('Mobile', 'मोबाइल')}</label><input class="form-control" id="d_p"></div>
-    <div class="form-group"><label>${L('Subject', 'विषय')}</label><input class="form-control" id="d_s"></div>
-    <div class="form-group"><label>${L('Details / Facts', 'विवरण')}*</label><textarea class="form-control" id="d_d" rows="3"></textarea></div>
-    <div class="form-group"><label>${L('Relief Sought', 'राहत')}</label><textarea class="form-control" id="d_r" rows="2"></textarea></div>
-    <button class="btn btn-primary" onclick="NS.genDraft('${type}','${esc(title)}')">✨ ${L('Generate', 'बनाएं')}</button>
+    <div class="form-group"><label>${L('Your Name', 'आपका नाम', 'మీ పేరు')}*</label><input class="form-control" id="d_n"></div>
+    <div class="form-group"><label>${L('Address', 'पता', 'చిరునామా')}*</label><textarea class="form-control" id="d_a"></textarea></div>
+    <div class="form-group"><label>${L('Mobile', 'मोबाइल', 'మొబైల్')}</label><input class="form-control" id="d_p"></div>
+    <div class="form-group"><label>${L('Subject', 'विषय', 'విషయం')}</label><input class="form-control" id="d_s"></div>
+    <div class="form-group"><label>${L('Details / Facts', 'विवरण', 'వివరాలు / వాస్తవాలు')}*</label><textarea class="form-control" id="d_d" rows="3"></textarea></div>
+    <div class="form-group"><label>${L('Relief Sought', 'राहत', 'కోరిన ఉపశమనం')}</label><textarea class="form-control" id="d_r" rows="2"></textarea></div>
+    <button class="btn btn-primary" onclick="NS.genDraft('${type}','${esc(title)}')">✨ ${L('Generate', 'बनाएं', 'రూపొందించండి')}</button>
     <div id="draftOut" class="mt-1" style="display:none"></div>`;
   F.style.display = 'block';
   F.scrollIntoView({ behavior: 'smooth' });
@@ -646,17 +649,17 @@ let lastDraft = '';
 function genDraft(type, title) {
   const g = id => $(id).value.trim();
   const n = g('d_n'), a = g('d_a'), p = g('d_p'), s = g('d_s'), d = g('d_d'), r = g('d_r');
-  if (!n || !d) { toast('⚠️ ' + L('Fill name & details', 'नाम व विवरण भरें'), 'warning'); return; }
+  if (!n || !d) { toast('⚠️ ' + L('Fill name & details', 'नाम व विवरण भरें', 'పేరు & వివరాలు నింపండి'), 'warning'); return; }
   const place = currentState ? STATES_UTS[currentState].name : 'India';
   const date = new Date().toLocaleDateString('en-IN');
   lastDraft = `To,\nThe Hon'ble Court / Concerned Authority\n${place}\n\nDate: ${date}\n\nSubject: ${s || title}\n\nRespected Sir / Madam,\n\nI, ${n}, resident of ${a || '[address]'}, most respectfully submit as under:\n\n1. ${d}\n\n${r ? '2. ' + r + '\n\n' : ''}PRAYER:\nIt is therefore most humbly prayed that this Hon'ble Court / Authority may kindly be pleased to grant the relief sought above and pass any other order deemed fit in the interest of justice.\n\nYours faithfully,\n\n(${n})\n${p ? 'Mobile: ' + p : ''}\n\n--- Generated by NyayaSahayak. Review with a legal professional before filing. ---`;
-  $('draftOut').innerHTML = `<div class="result-box"><h4>📋 ${L('Your Draft', 'आपका मसौदा')}</h4><pre class="draft">${esc(lastDraft)}</pre>
+  $('draftOut').innerHTML = `<div class="result-box"><h4>📋 ${L('Your Draft', 'आपका मसौदा', 'మీ ముసాయిదా')}</h4><pre class="draft">${esc(lastDraft)}</pre>
     <div class="btn-group mt-1">
-      <button class="btn btn-success" onclick="NS.copyDraft()">📋 ${L('Copy', 'कॉपी')}</button>
-      <button class="btn btn-primary" onclick="NS.printDraft()">🖨️ ${L('Print', 'प्रिंट')}</button>
-      <button class="btn btn-outline" onclick="NS.downloadDraft()">💾 ${L('Download', 'डाउनलोड')}</button>
+      <button class="btn btn-success" onclick="NS.copyDraft()">📋 ${L('Copy', 'कॉपी', 'కాపీ')}</button>
+      <button class="btn btn-primary" onclick="NS.printDraft()">🖨️ ${L('Print', 'प्रिंट', 'ప్రింట్')}</button>
+      <button class="btn btn-outline" onclick="NS.downloadDraft()">💾 ${L('Download', 'डाउनलोड', 'డౌన్‌లోడ్')}</button>
     </div>
-    <div class="alert alert-warning mt-1" style="font-size:.82rem">⚖️ ${L('This is a template, not legal advice. Have it reviewed before filing.', 'यह एक टेम्पलेट है, कानूनी सलाह नहीं। दाखिल करने से पहले समीक्षा कराएं।')}</div></div>`;
+    <div class="alert alert-warning mt-1" style="font-size:.82rem">⚖️ ${L('This is a template, not legal advice. Have it reviewed before filing.', 'यह एक टेम्पलेट है, कानूनी सलाह नहीं। दाखिल करने से पहले समीक्षा कराएं।', 'ఇది ఒక టెంప్లేట్, న్యాయ సలహా కాదు. దాఖలు చేయడానికి ముందు సమీక్షించండి.')}</div></div>`;
   $('draftOut').style.display = 'block';
 }
 
@@ -666,10 +669,10 @@ function genDraft(type, title) {
 function renderNearby() {
   return `
     <h1 class="page-title">📍 ${t('nearby')}</h1>
-    <p class="page-subtitle">${L('Courts, police, and free legal aid near you', 'आपके पास अदालत, पुलिस, मुफ्त सहायता')}</p>
-    <div class="card"><h3 class="card-title">📍 ${L('Location', 'स्थान')}</h3>
-      <button class="btn btn-primary" onclick="NS.findLocation()">📍 ${L('Use My Location', 'मेरा स्थान')}</button>
-      ${currentDistrict ? `<p class="mt-1">${L('District', 'जिला')}: <strong>${esc(currentDistrict)}</strong></p>` : ''}
+    <p class="page-subtitle">${L('Courts, police, and free legal aid near you', 'आपके पास अदालत, पुलिस, मुफ्त सहायता', 'మీ దగ్గర కోర్టులు, పోలీసులు, ఉచిత న్యాయ సహాయం')}</p>
+    <div class="card"><h3 class="card-title">📍 ${L('Location', 'स्थान', 'ప్రదేశం')}</h3>
+      <button class="btn btn-primary" onclick="NS.findLocation()">📍 ${L('Use My Location', 'मेरा स्थान', 'నా ప్రదేశాన్ని ఉపయోగించండి')}</button>
+      ${currentDistrict ? `<p class="mt-1">${L('District', 'जिला', 'జిల్లా')}: <strong>${esc(currentDistrict)}</strong></p>` : ''}
       <div id="locationStatus" class="mt-1"></div>
     </div>
     <div id="nearbyResults"></div>`;
@@ -677,18 +680,18 @@ function renderNearby() {
 function renderNearbyList(coords) {
   const dist = currentDistrict || (currentState ? STATES_UTS[currentState].name : 'Your Area');
   const items = nearbyServices(dist, currentLang);
-  $('nearbyResults').innerHTML = `<div class="card"><h3 class="card-title">📍 ${L('In / near', 'आस-पास')} ${esc(dist)}</h3>
-    ${items.map(p => `<div class="nearby-card"><div><h4>${p.icon} ${esc(p.name)}</h4><p style="font-size:.85rem;color:var(--text-light)">📍 ${esc(p.address)}</p>${p.phone ? `<p style="font-size:.85rem">📞 <a href="tel:${p.phone}">${esc(p.phone)}</a></p>` : ''}</div><div style="display:flex;flex-direction:column;gap:.3rem;align-items:flex-end"><span class="nearby-distance">${esc(p.dist)}</span>${p.map ? `<a class="btn btn-outline btn-sm" href="${mapLink(p.map, coords)}" target="_blank" rel="noopener">🗺️ ${L('Map', 'नक्शा')}</a>` : ''}</div></div>`).join('')}</div>`;
+  $('nearbyResults').innerHTML = `<div class="card"><h3 class="card-title">📍 ${L('In / near', 'आस-पास', 'దగ్గరలో')} ${esc(dist)}</h3>
+    ${items.map(p => `<div class="nearby-card"><div><h4>${p.icon} ${esc(p.name)}</h4><p style="font-size:.85rem;color:var(--text-light)">📍 ${esc(p.address)}</p>${p.phone ? `<p style="font-size:.85rem">📞 <a href="tel:${p.phone}">${esc(p.phone)}</a></p>` : ''}</div><div style="display:flex;flex-direction:column;gap:.3rem;align-items:flex-end"><span class="nearby-distance">${esc(p.dist)}</span>${p.map ? `<a class="btn btn-outline btn-sm" href="${mapLink(p.map, coords)}" target="_blank" rel="noopener">🗺️ ${L('Map', 'नक्शा', 'మ్యాప్')}</a>` : ''}</div></div>`).join('')}</div>`;
 }
 async function findLocation() {
   const s = $('locationStatus');
-  s.innerHTML = `<div class="alert alert-info">📡 ${L('Locating…', 'खोज रहे हैं…')}</div>`;
+  s.innerHTML = `<div class="alert alert-info">📡 ${L('Locating…', 'खोज रहे हैं…', 'గుర్తిస్తోంది…')}</div>`;
   try {
     const coords = await getCoords();
-    s.innerHTML = `<div class="alert alert-success">✅ ${L('Location found', 'स्थान मिला')}: ${coords.lat.toFixed(3)}, ${coords.lng.toFixed(3)}</div>`;
+    s.innerHTML = `<div class="alert alert-success">✅ ${L('Location found', 'स्थान मिला', 'ప్రదేశం కనుగొనబడింది')}: ${coords.lat.toFixed(3)}, ${coords.lng.toFixed(3)}</div>`;
     renderNearbyList(coords);
   } catch (e) {
-    s.innerHTML = `<div class="alert alert-warning">${L('GPS unavailable — showing your district list', 'GPS नहीं मिला — जिला सूची')}</div>`;
+    s.innerHTML = `<div class="alert alert-warning">${L('GPS unavailable — showing your district list', 'GPS नहीं मिला — जिला सूची', 'GPS అందుబాటులో లేదు — మీ జిల్లా జాబితా చూపిస్తోంది')}</div>`;
     renderNearbyList(null);
   }
 }
@@ -697,27 +700,27 @@ async function findLocation() {
 // PAGE: Rights
 // ============================================
 function renderRights() {
-  const items = [['arrest', '👮', L('Arrest', 'गिरफ्तारी')], ['women', '👩', L('Women', 'महिला')], ['consumer', '🛒', L('Consumer', 'उपभोक्ता')], ['tenant', '🔑', L('Tenant', 'किरायेदार')], ['worker', '💼', L('Worker', 'श्रमिक')], ['fir', '🚔', 'FIR']];
+  const items = [['arrest', '👮', L('Arrest', 'गिरफ्तारी', 'అరెస్ట్')], ['women', '👩', L('Women', 'महिला', 'మహిళలు')], ['consumer', '🛒', L('Consumer', 'उपभोक्ता', 'వినియోగదారు')], ['tenant', '🔑', L('Tenant', 'किरायेदार', 'అద్దెదారు')], ['worker', '💼', L('Worker', 'श्रमिक', 'కార్మికుడు')], ['fir', '🚔', 'FIR']];
   return `<h1 class="page-title">📚 ${t('rights')}</h1>
-    <p class="page-subtitle">${L('Know what the law guarantees you', 'जानें कानून आपको क्या देता है')}</p>
+    <p class="page-subtitle">${L('Know what the law guarantees you', 'जानें कानून आपको क्या देता है', 'చట్టం మీకు ఏమి హామీ ఇస్తుందో తెలుసుకోండి')}</p>
     <div class="grid">${items.map(([k, ic, lbl]) => `<div class="feature-card" onclick="NS.showRights('${k}')"><div class="feature-icon">${ic}</div><div class="feature-title">${lbl}</div></div>`).join('')}</div>
     <div id="rightsInfo" class="card mt-1" style="display:none"></div>`;
 }
 function rightsData(type) {
   const data = {
-    arrest: { title: L('Arrest Rights', 'गिरफ्तारी अधिकार'), c: `<ol><li>${L('Right to know the reason for arrest', 'गिरफ्तारी का कारण जानने का अधिकार')}</li><li>${L('Right to inform a family member/friend', 'परिवार को सूचित करने का अधिकार')}</li><li>${L('Right to a free lawyer', 'मुफ्त वकील का अधिकार')}</li><li>${L('Must be produced before magistrate within 24 hrs', '24 घंटे में मजिस्ट्रेट के समक्ष')}</li><li>${L('Right to remain silent', 'चुप रहने का अधिकार')}</li></ol><p>📞 <strong>15100</strong></p>` },
-    women: { title: L('Women Rights', 'महिला अधिकार'), c: `<ul><li>${L('Equal pay for equal work', 'समान काम, समान वेतन')}</li><li>${L('Protection from domestic violence (PWDVA 2005)', 'घरेलू हिंसा से सुरक्षा')}</li><li>${L('Maternity leave & benefits', 'मातृत्व अवकाश')}</li><li>${L('No arrest of a woman after sunset without special order', 'सूर्यास्त के बाद विशेष आदेश के बिना गिरफ्तारी नहीं')}</li></ul><p>📞 <strong>181</strong></p>` },
-    consumer: { title: L('Consumer Rights', 'उपभोक्ता अधिकार'), c: `<ol><li>${L('Right to Safety', 'सुरक्षा')}</li><li>${L('Right to Information', 'जानकारी')}</li><li>${L('Right to Choose', 'चुनाव')}</li><li>${L('Right to be Heard', 'सुनवाई')}</li><li>${L('Right to Redressal', 'निवारण')}</li><li>${L('Right to Consumer Education', 'शिक्षा')}</li></ol><p>🌐 <a href="https://edaakhil.nic.in" target="_blank" rel="noopener">edaakhil.nic.in</a></p>` },
-    tenant: { title: L('Tenant Rights', 'किरायेदार अधिकार'), c: `<ul><li>${L('Right to peaceful possession', 'शांतिपूर्ण निवास')}</li><li>${L('No eviction without due legal process', 'कानूनी प्रक्रिया के बिना बेदखली नहीं')}</li><li>${L('Right to a rent receipt', 'किराया रसीद')}</li><li>${L('Essential services cannot be cut off', 'आवश्यक सेवाएं नहीं काटी जा सकतीं')}</li></ul>` },
-    worker: { title: L('Worker Rights', 'श्रमिक अधिकार'), c: `<ul><li>${L('Minimum wages', 'न्यूनतम मजदूरी')}</li><li>${L('Max 8-hour work day / overtime pay', '8 घंटे कार्य / ओवरटाइम')}</li><li>${L('PF & ESI benefits', 'PF व ESI')}</li><li>${L('Safe workplace & gratuity', 'सुरक्षित कार्यस्थल')}</li></ul>` },
-    fir: { title: 'FIR ' + L('Rights', 'अधिकार'), c: `<ul><li>${L('Right to register an FIR for a cognizable offence', 'संज्ञेय अपराध के लिए FIR का अधिकार')}</li><li>${L('Zero FIR — file at any police station', 'जीरो FIR — किसी भी थाने में')}</li><li>${L('Free copy of the FIR', 'FIR की मुफ्त प्रति')}</li></ul><p>${L('If police refuse, approach the Magistrate under Section 156(3) CrPC.', 'यदि पुलिस मना करे तो धारा 156(3) के तहत मजिस्ट्रेट से संपर्क करें।')}</p>` }
+    arrest: { title: L('Arrest Rights', 'गिरफ्तारी अधिकार', 'అరెస్ట్ హక్కులు'), c: `<ol><li>${L('Right to know the reason for arrest', 'गिरफ्तारी का कारण जानने का अधिकार', 'అరెస్ట్‌కు కారణం తెలుసుకునే హక్కు')}</li><li>${L('Right to inform a family member/friend', 'परिवार को सूचित करने का अधिकार', 'కుటుంబ సభ్యుడు/స్నేహితుడికి తెలియజేసే హక్కు')}</li><li>${L('Right to a free lawyer', 'मुफ्त वकील का अधिकार', 'ఉచిత న్యాయవాది హక్కు')}</li><li>${L('Must be produced before magistrate within 24 hrs', '24 घंटे में मजिस्ट्रेट के समक्ष', '24 గంటల్లో మేజిస్ట్రేట్ ముందు హాజరుపరచాలి')}</li><li>${L('Right to remain silent', 'चुप रहने का अधिकार', 'మౌనంగా ఉండే హక్కు')}</li></ol><p>📞 <strong>15100</strong></p>` },
+    women: { title: L('Women Rights', 'महिला अधिकार', 'మహిళల హక్కులు'), c: `<ul><li>${L('Equal pay for equal work', 'समान काम, समान वेतन', 'సమాన పనికి సమాన వేతనం')}</li><li>${L('Protection from domestic violence (PWDVA 2005)', 'घरेलू हिंसा से सुरक्षा', 'గృహ హింస నుండి రక్షణ (PWDVA 2005)')}</li><li>${L('Maternity leave & benefits', 'मातृत्व अवकाश', 'ప్రసూతి సెలవు & ప్రయోజనాలు')}</li><li>${L('No arrest of a woman after sunset without special order', 'सूर्यास्त के बाद विशेष आदेश के बिना गिरफ्तारी नहीं', 'ప్రత్యేక ఉత్తర్వు లేకుండా సూర్యాస్తమయం తర్వాత మహిళను అరెస్ట్ చేయరాదు')}</li></ul><p>📞 <strong>181</strong></p>` },
+    consumer: { title: L('Consumer Rights', 'उपभोक्ता अधिकार', 'వినియోగదారు హక్కులు'), c: `<ol><li>${L('Right to Safety', 'सुरक्षा', 'భద్రత హక్కు')}</li><li>${L('Right to Information', 'जानकारी', 'సమాచార హక్కు')}</li><li>${L('Right to Choose', 'चुनाव', 'ఎంపిక హక్కు')}</li><li>${L('Right to be Heard', 'सुनवाई', 'వినిపించుకునే హక్కు')}</li><li>${L('Right to Redressal', 'निवारण', 'పరిష్కార హక్కు')}</li><li>${L('Right to Consumer Education', 'शिक्षा', 'వినియోగదారు విద్య హక్కు')}</li></ol><p>🌐 <a href="https://edaakhil.nic.in" target="_blank" rel="noopener">edaakhil.nic.in</a></p>` },
+    tenant: { title: L('Tenant Rights', 'किरायेदार अधिकार', 'అద్దెదారు హక్కులు'), c: `<ul><li>${L('Right to peaceful possession', 'शांतिपूर्ण निवास', 'ప్రశాంత స్వాధీన హక్కు')}</li><li>${L('No eviction without due legal process', 'कानूनी प्रक्रिया के बिना बेदखली नहीं', 'తగిన న్యాయ ప్రక్రియ లేకుండా ఖాళీ చేయించరాదు')}</li><li>${L('Right to a rent receipt', 'किराया रसीद', 'అద్దె రసీదు హక్కు')}</li><li>${L('Essential services cannot be cut off', 'आवश्यक सेवाएं नहीं काटी जा सकतीं', 'అవసర సేవలను నిలిపివేయరాదు')}</li></ul>` },
+    worker: { title: L('Worker Rights', 'श्रमिक अधिकार', 'కార్మిక హక్కులు'), c: `<ul><li>${L('Minimum wages', 'न्यूनतम मजदूरी', 'కనీస వేతనాలు')}</li><li>${L('Max 8-hour work day / overtime pay', '8 घंटे कार्य / ओवरटाइम', 'గరిష్టంగా 8 గంటల పని దినం / ఓవర్‌టైమ్ చెల్లింపు')}</li><li>${L('PF & ESI benefits', 'PF व ESI', 'PF & ESI ప్రయోజనాలు')}</li><li>${L('Safe workplace & gratuity', 'सुरक्षित कार्यस्थल', 'సురక్షిత పనిప్రదేశం & గ్రాట్యుటీ')}</li></ul>` },
+    fir: { title: 'FIR ' + L('Rights', 'अधिकार', 'హక్కులు'), c: `<ul><li>${L('Right to register an FIR for a cognizable offence', 'संज्ञेय अपराध के लिए FIR का अधिकार', 'గుర్తించదగిన నేరానికి FIR నమోదు చేసే హక్కు')}</li><li>${L('Zero FIR — file at any police station', 'जीरो FIR — किसी भी थाने में', 'జీరో FIR — ఏ పోలీస్ స్టేషన్‌లోనైనా దాఖలు చేయవచ్చు')}</li><li>${L('Free copy of the FIR', 'FIR की मुफ्त प्रति', 'FIR ఉచిత కాపీ')}</li></ul><p>${L('If police refuse, approach the Magistrate under Section 156(3) CrPC.', 'यदि पुलिस मना करे तो धारा 156(3) के तहत मजिस्ट्रेट से संपर्क करें।', 'పోలీసులు నిరాకరిస్తే, CrPC సెక్షన్ 156(3) కింద మేజిస్ట్రేట్‌ను సంప్రదించండి.')}</p>` }
   };
   return data[type];
 }
 function showRights(type) {
   const d = rightsData(type);
   const el = $('rightsInfo');
-  el.innerHTML = `<h3 class="card-title">${d.title}</h3><div style="line-height:1.7">${d.c}</div><button class="btn btn-outline btn-sm mt-1" onclick="NS.speakText(document.getElementById('rightsInfo').innerText)">🔊 ${L('Read aloud', 'सुनें')}</button>`;
+  el.innerHTML = `<h3 class="card-title">${d.title}</h3><div style="line-height:1.7">${d.c}</div><button class="btn btn-outline btn-sm mt-1" onclick="NS.speakText(document.getElementById('rightsInfo').innerText)">🔊 ${L('Read aloud', 'सुनें', 'బిగ్గరగా చదవండి')}</button>`;
   el.style.display = 'block';
   el.scrollIntoView({ behavior: 'smooth' });
 }
@@ -728,33 +731,20 @@ function showRights(type) {
 function renderHelpline() {
   const st = currentState ? STATES_UTS[currentState] : null;
   return `<h1 class="page-title">📞 ${t('helpline')}</h1>
-    <div class="card"><h3 class="card-title">🆘 ${L('Emergency', 'आपातकालीन')}</h3>
-      <div class="grid">${[['Police / पुलिस', '100'], ['Women / महिला', '1091 / 181'], ['Child / बाल', '1098'], ['Cyber / साइबर', '1930'], ['NALSA', '15100'], ['Senior / वरिष्ठ', '14567'], ['Ambulance', '108'], ['Emergency', '112']].map(([l, n]) => `<div><strong>${esc(l)}</strong><p class="emergency-num">${esc(n)}</p></div>`).join('')}</div>
+    <div class="card"><h3 class="card-title">🆘 ${L('Emergency', 'आपातकालीन', 'అత్యవసరం')}</h3>
+      <div class="grid">${[['Police / పోలీస్', '100'], ['Women / మహిళలు', '1091 / 181'], ['Child / పిల్లలు', '1098'], ['Cyber / సైబర్', '1930'], ['NALSA', '15100'], ['Senior / వృద్ధులు', '14567'], ['Ambulance', '108'], ['Emergency', '112']].map(([l, n]) => `<div><strong>${esc(l)}</strong><p class="emergency-num">${esc(n)}</p></div>`).join('')}</div>
     </div>
     ${st ? `<div class="card"><h3 class="card-title">📍 ${esc(st.name)}</h3>
-      <p><strong>${L('High Court', 'उच्च न्यायालय')}:</strong> ${esc(st.hc)}</p>
-      <p><strong>${L('Land Law', 'भूमि कानून')}:</strong> ${esc(st.landLaw)}</p>
-      ${st.portal ? `<p><strong>${L('Land Records Portal', 'भूमि रिकॉर्ड पोर्टल')}:</strong> <a href="${st.portal}" target="_blank" rel="noopener">${st.portal}</a></p>` : ''}
-      <p><strong>${L('Bar Council', 'बार काउंसिल')}:</strong> <a href="https://www.barcouncilofindia.org" target="_blank" rel="noopener">barcouncilofindia.org</a></p>
-    </div>` : `<div class="alert alert-warning">${L('Select your state for local details', 'स्थानीय विवरण के लिए राज्य चुनें')}</div>`}
-    <div class="card"><h3 class="card-title">🔊 ${L('Voice Help', 'आवाज सहायता')}</h3>
-      <p style="font-size:.85rem;color:var(--text-light)">${L('Listen to the key helpline numbers read aloud.', 'मुख्य हेल्पलाइन नंबर सुनें।')}</p>
-      <button class="btn btn-primary" onclick="NS.speakHelplines()">🎤 ${L('Listen', 'सुनें')}</button>
+      <p><strong>${L('High Court', 'उच्च न्यायालय', 'హైకోర్టు')}:</strong> ${esc(st.hc)}</p>
+      <p><strong>${L('Land Law', 'भूमि कानून', 'భూ చట్టం')}:</strong> ${esc(st.landLaw)}</p>
+      ${st.portal ? `<p><strong>${L('Land Records Portal', 'भूमि रिकॉर्ड पोर्टल', 'భూ రికార్డుల పోర్టల్')}:</strong> <a href="${st.portal}" target="_blank" rel="noopener">${st.portal}</a></p>` : ''}
+      <p><strong>${L('Bar Council', 'बार काउंसिल', 'బార్ కౌన్సిల్')}:</strong> <a href="https://www.barcouncilofindia.org" target="_blank" rel="noopener">barcouncilofindia.org</a></p>
+    </div>` : `<div class="alert alert-warning">${L('Select your state for local details', 'स्थानीय विवरण के लिए राज्य चुनें', 'స్థానిక వివరాల కోసం మీ రాష్ట్రాన్ని ఎంచుకోండి')}</div>`}
+    <div class="card"><h3 class="card-title">🔊 ${L('Voice Help', 'आवाज सहायता', 'వాయిస్ సహాయం')}</h3>
+      <p style="font-size:.85rem;color:var(--text-light)">${L('Listen to the key helpline numbers read aloud.', 'मुख्य हेल्पलाइन नंबर सुनें।', 'ముఖ్య హెల్ప్‌లైన్ నంబర్‌లను బిగ్గరగా వినండి.')}</p>
+      <button class="btn btn-primary" onclick="NS.speakHelplines()">🎤 ${L('Listen', 'सुनें', 'వినండి')}</button>
     </div>`;
 }
-
-// ============================================
-// Post-render hooks (attach listeners after innerHTML swap)
-// ============================================
-const _origRender = renderCurrentPage;
-function renderWithHooks() {
-  _origRender();
-  if (currentPage === 'mycase') { afterMyCaseRender(); }
-  if (currentPage === 'analyzer') { afterAnalyzerRender(); }
-  if (currentPage === 'attorney') { renderLogs(); }
-}
-// override
-renderCurrentPage = renderWithHooks;
 
 // ============================================
 // Handlers exposed to inline onclick via window.NS
@@ -771,7 +761,7 @@ const handlers = {
   findLocation,
   showRights,
   speakHelplines: () => speakHelplines(currentLang),
-  speakText: (txt) => { if (!ttsSupported()) { toast('⚠️ ' + L('Voice not supported', 'आवाज समर्थित नहीं'), 'warning'); return; } speak(txt, currentLang); toast('🔊 ' + L('Playing…', 'चल रहा है…')); },
+  speakText: (txt) => { if (!ttsSupported()) { toast('⚠️ ' + L('Voice not supported', 'आवाज समर्थित नहीं', 'వాయిస్ మద్దతు లేదు'), 'warning'); return; } speak(txt, currentLang); toast('🔊 ' + L('Playing…', 'चल रहा है…', 'ప్లే అవుతోంది…')); },
   removeDoc: (i) => { currentDocs.splice(i, 1); renderDocList(); },
   switchCase: (tab, el) => {
     document.querySelectorAll('#mainContent .tab').forEach(t => t.classList.remove('active'));
@@ -781,9 +771,9 @@ const handlers = {
     if (tab === 'list') renderCaseList();
   },
   openCase: (id) => { currentCase = cases.find(c => c.id === id); toast('📂 ' + id); showPage('guide'); },
-  deleteCase: async (id) => { if (!confirm(L('Delete this case?', 'मामला हटाएं?'))) return; cases = cases.filter(c => c.id !== id); if (currentCase?.id === id) currentCase = null; await saveCases(); renderCaseList(); renderSidebar(); },
-  checkCNR: () => { const v = $('cnrIn').value; $('cnrResult').innerHTML = isValidCNR(v) ? `<div class="green-flag">✅ ${L('Valid CNR format. Look it up on the District Court portal above.', 'सही CNR प्रारूप। ऊपर पोर्टल पर खोजें।')}</div>` : `<div class="yellow-flag">⚠️ ${L('Not a valid 16-character CNR. Example: DLHC010001232024', 'मान्य CNR नहीं। उदाहरण: DLHC010001232024')}</div>`; },
-  copyDraft: () => { navigator.clipboard?.writeText(lastDraft); toast('📋 ' + L('Copied', 'कॉपी किया')); },
+  deleteCase: async (id) => { if (!confirm(L('Delete this case?', 'मामला हटाएं?', 'ఈ కేసును తొలగించాలా?'))) return; cases = cases.filter(c => c.id !== id); if (currentCase?.id === id) currentCase = null; await saveCases(); renderCaseList(); renderSidebar(); },
+  checkCNR: () => { const v = $('cnrIn').value; $('cnrResult').innerHTML = isValidCNR(v) ? `<div class="green-flag">✅ ${L('Valid CNR format. Look it up on the District Court portal above.', 'सही CNR प्रारूप। ऊपर पोर्टल पर खोजें।', 'సరైన CNR ఫార్మాట్. పైన ఉన్న జిల్లా కోర్టు పోర్టల్‌లో వెతకండి.')}</div>` : `<div class="yellow-flag">⚠️ ${L('Not a valid 16-character CNR. Example: DLHC010001232024', 'मान्य CNR नहीं। उदाहरण: DLHC010001232024', 'చెల్లుబాటు అయ్యే 16-అక్షరాల CNR కాదు. ఉదా: DLHC010001232024')}</div>`; },
+  copyDraft: () => { navigator.clipboard?.writeText(lastDraft); toast('📋 ' + L('Copied', 'कॉपी किया', 'కాపీ చేయబడింది')); },
   printDraft: () => { const w = window.open('', '', 'width=800,height=600'); w.document.write('<html><body style="padding:30px;font-family:Arial,sans-serif"><pre style="white-space:pre-wrap">' + esc(lastDraft) + '</pre><scr' + 'ipt>window.print()</scr' + 'ipt></body></html>'); w.document.close(); },
-  downloadDraft: () => { const b = new Blob([lastDraft], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'nyayasahayak-draft.txt'; a.click(); toast('💾 ' + L('Downloaded', 'डाउनलोड')); }
+  downloadDraft: () => { const b = new Blob([lastDraft], { type: 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'nyayasahayak-draft.txt'; a.click(); toast('💾 ' + L('Downloaded', 'डाउनलोड', 'డౌన్‌లోడ్ అయింది')); }
 };
