@@ -3,7 +3,7 @@
 // Offline-first: precache the app shell, serve cache-first
 // for local assets, network-first for everything else.
 // ============================================
-const CACHE = 'nyayasahayak-v4';
+const CACHE = 'nyayasahayak-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const ASSETS = [
   './css/styles.css',
   './js/app.js',
   './js/districts-data.js',
+  './js/legal-data.js',
   './js/ai-engine.js',
   './js/ecourts-api.js',
   './js/encryption.js',

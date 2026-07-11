@@ -9,6 +9,7 @@ import { STATES_UTS, RED_FLAGS_DB, I18N } from './districts-data.js';
 import { analyzeNotice } from './ai-engine.js';
 import { nearbyServices, mapLink, getCoords } from './geolocation.js';
 import { lookupTargets, statusSummary, isValidCNR } from './ecourts-api.js';
+import { ELIG_CATEGORIES, INCOME_CEILINGS, LIMITATION, GLOSSARY } from './legal-data.js';
 import { speak, speakHelplines, isSupported as ttsSupported, hasVoiceFor, startDictation, stopDictation, sttSupported, isDictating } from './ivr.js';
 import { encryptData, decryptData, unlockWithPin, hashPin, isUnlocked } from './encryption.js';
 
@@ -55,11 +56,13 @@ const PAGES = [
   { id: 'dashboard', icon: '🏠', key: 'home' },
   { id: 'mycase', icon: '📋', key: 'mycase' },
   { id: 'cases', icon: '🔎', key: 'cases' },
+  { id: 'eligibility', icon: '🎟️', key: 'eligibility' },
   { id: 'guide', icon: '🛣️', key: 'guide' },
   { id: 'redflags', icon: '🚨', key: 'redflags' },
   { id: 'attorney', icon: '👨‍⚖️', key: 'attorney' },
   { id: 'analyzer', icon: '🔍', key: 'analyzer' },
   { id: 'drafts', icon: '✍️', key: 'drafts' },
+  { id: 'glossary', icon: '📖', key: 'glossary' },
   { id: 'nearby', icon: '📍', key: 'nearby' },
   { id: 'rights', icon: '📚', key: 'rights' },
   { id: 'helpline', icon: '📞', key: 'helpline' }
@@ -193,11 +196,12 @@ function showPage(id) {
 }
 function renderCurrentPage() {
   stopDictation(); // end any voice input before the DOM is swapped
-  const fns = { dashboard: renderDashboard, mycase: renderMyCase, cases: renderCaseStatus, guide: renderGuide, redflags: renderRedFlags, attorney: renderAttorney, analyzer: renderAnalyzer, drafts: renderDrafts, nearby: renderNearby, rights: renderRights, helpline: renderHelpline };
+  const fns = { dashboard: renderDashboard, mycase: renderMyCase, cases: renderCaseStatus, eligibility: renderEligibility, guide: renderGuide, redflags: renderRedFlags, attorney: renderAttorney, analyzer: renderAnalyzer, drafts: renderDrafts, glossary: renderGlossary, nearby: renderNearby, rights: renderRights, helpline: renderHelpline };
   $('mainContent').innerHTML = `<div class="page">${(fns[currentPage] || renderDashboard)()}</div>`;
   if (currentPage === 'mycase') afterMyCaseRender();
   if (currentPage === 'analyzer') afterAnalyzerRender();
   if (currentPage === 'attorney') renderLogs();
+  if (currentPage === 'cases') updateTriggerLabel();
 }
 
 // ---------- Toast / Modal ----------
@@ -246,7 +250,9 @@ function renderDashboard() {
 function featureDesc(id) {
   const d = {
     mycase: L('Upload & track your case', 'मामला अपलोड व ट्रैक करें', 'మీ కేసును అప్‌లోడ్ & ట్రాక్ చేయండి'),
-    cases: L('Check case status on eCourts', 'eCourts पर स्थिति देखें', 'eCourtsలో కేసు స్థితిని చూడండి'),
+    cases: L('Case status, deadlines & reminders', 'स्थिति, समय-सीमा व रिमाइंडर', 'స్థితి, గడువులు & రిమైండర్‌లు'),
+    eligibility: L('Do you qualify for FREE legal aid?', 'क्या आप मुफ्त सहायता के पात्र हैं?', 'మీరు ఉచిత న్యాయ సహాయానికి అర్హులా?'),
+    glossary: L('Legal words in simple language', 'सरल भाषा में कानूनी शब्द', 'సరళ భాషలో న్యాయ పదాలు'),
     guide: L('3 paths: DIY / Hybrid / Attorney', '3 रास्ते', '3 మార్గాలు: మీరే / మిశ్రమ / న్యాయవాది'),
     redflags: L('Detect attorney fraud early', 'वकील धोखाधड़ी पकड़ें', 'న్యాయవాది మోసాన్ని ముందుగా గుర్తించండి'),
     attorney: L('Monitor your lawyer', 'वकील की निगरानी', 'మీ న్యాయవాదిని పర్యవేక్షించండి'),
@@ -421,11 +427,138 @@ function renderCaseStatus() {
         <div class="form-group"><button class="btn btn-primary" onclick="NS.checkCNR()">${L('Validate', 'जाँचें', 'ధృవీకరించండి')}</button></div>
       </div>
       <div id="cnrResult"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">⏰ ${L('Deadline & Limitation Calculator', 'समय-सीमा व परिसीमा कैलकुलेटर', 'గడువు & పరిమితి కాలిక్యులేటర్')}</h3>
+      <p style="font-size:.85rem;color:var(--text-light)">${L('Missing a legal deadline can end your case. Find your dates and set a reminder.', 'समय-सीमा चूकना आपका मामला समाप्त कर सकता है। अपनी तारीखें जानें और रिमाइंडर लगाएं।', 'గడువు తప్పితే మీ కేసు ముగియవచ్చు. మీ తేదీలను తెలుసుకుని రిమైండర్ పెట్టుకోండి.')}</p>
+      <div class="form-row">
+        <div class="form-group"><label>${L('Case type', 'मामले का प्रकार', 'కేసు రకం')}</label>
+          <select class="form-control" id="dl_type" onchange="NS.updateTriggerLabel()">${caseTypes().filter(ct => LIMITATION[ct[0]]).map(([v, en, hi, te]) => `<option value="${v}"${currentCase?.type === v ? ' selected' : ''}>${L(en, hi, te)}</option>`).join('')}</select></div>
+        <div class="form-group"><label id="dl_triggerLabel">${L('Start date', 'प्रारंभ तिथि', 'ప్రారంభ తేదీ')}</label><input type="date" class="form-control" id="dl_date"></div>
+      </div>
+      <button class="btn btn-primary" onclick="NS.calcDeadlines()">⏱️ ${L('Calculate', 'गणना करें', 'లెక్కించండి')}</button>
+      <div id="dl_result" class="mt-1"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">🔔 ${L('Hearing Reminder', 'सुनवाई रिमाइंडर', 'విచారణ రిమైండర్')}</h3>
+      <p style="font-size:.85rem;color:var(--text-light)">${L('Save your next hearing to your phone calendar with a 1-day-before alert.', 'अगली सुनवाई को 1 दिन पहले अलर्ट के साथ कैलेंडर में सहेजें।', 'మీ తదుపరి విచారణను 1 రోజు ముందు అలర్ట్‌తో ఫోన్ క్యాలెండర్‌లో సేవ్ చేయండి.')}</p>
+      <div class="form-row">
+        <div class="form-group"><label>${L('Hearing date', 'सुनवाई तिथि', 'విచారణ తేదీ')}</label><input type="date" class="form-control" id="hr_date"></div>
+        <div class="form-group"><label>${L('Note (court / purpose)', 'नोट (अदालत/उद्देश्य)', 'నోట్ (కోర్టు / ఉద్దేశం)')}</label><input class="form-control" id="hr_note" placeholder="${currentCase ? esc(currentCase.id) : L('e.g. next hearing', 'जैसे अगली सुनवाई', 'ఉదా. తదుపరి విచారణ')}"></div>
+      </div>
+      <button class="btn btn-success" onclick="NS.addHearingReminder()">📅 ${L('Add to Calendar', 'कैलेंडर में जोड़ें', 'క్యాలెండర్‌కు జోడించండి')}</button>
     </div>`;
 }
 function statusTable(s) {
   const rows = [[L('CNR', 'CNR', 'CNR'), s.cnr], [L('Court', 'अदालत', 'కోర్టు'), s.court], [L('Case No.', 'केस नंबर', 'కేసు నం.'), s.caseNumber], [L('Next Date', 'अगली तारीख', 'తదుపరి తేదీ'), s.nextDate], [L('Stage', 'चरण', 'దశ'), s.stage]];
   return `<div class="grid">${rows.map(([k, v]) => `<div><strong>${esc(k)}:</strong> ${esc(v)}</div>`).join('')}</div>`;
+}
+
+// ---- Deadline calculator + calendar reminders (.ics) ----
+function fmtDate(d) { return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function addDays(iso, days) { const dt = new Date(iso + 'T00:00:00'); dt.setDate(dt.getDate() + days); return dt; }
+function daysFromToday(d) { const t = new Date(); t.setHours(0, 0, 0, 0); return Math.round((d - t) / 86400000); }
+function updateTriggerLabel() {
+  const sel = $('dl_type'), lab = $('dl_triggerLabel'); if (!sel || !lab) return;
+  const rule = LIMITATION[sel.value];
+  if (rule) lab.textContent = L(rule.trigger.en, rule.trigger.hi, rule.trigger.te);
+}
+let lastDeadlines = [];
+function calcDeadlines() {
+  const type = $('dl_type').value, iso = $('dl_date').value;
+  if (!iso) { toast('⚠️ ' + L('Pick a start date', 'प्रारंभ तिथि चुनें', 'ప్రారంభ తేదీని ఎంచుకోండి'), 'warning'); return; }
+  const rule = LIMITATION[type]; lastDeadlines = [];
+  const rows = rule.steps.map(s => {
+    if (s.offset == null) return `<div class="yellow-flag">⚠️ ${esc(L(s.en, s.hi, s.te))}</div>`;
+    const dt = addDays(iso, s.offset), dd = daysFromToday(dt);
+    const badge = dd < 0
+      ? `<span class="badge badge-danger">${L('overdue', 'बीत गया', 'గడువు దాటింది')}</span>`
+      : `<span class="badge badge-${dd <= 7 ? 'warning' : 'success'}">${dd} ${L('days left', 'दिन शेष', 'రోజులు మిగిలి')}</span>`;
+    const idx = lastDeadlines.push({ title: L(s.en, s.hi, s.te), iso: dt.toISOString().slice(0, 10) }) - 1;
+    return `<div class="case-item"><div><strong>${esc(L(s.en, s.hi, s.te))}</strong><br>📅 <strong>${fmtDate(dt)}</strong> ${badge}</div><button class="btn btn-outline btn-sm" onclick="NS.icsDeadline(${idx})">🔔 ${L('Remind', 'रिमाइंडर', 'రిమైండ్')}</button></div>`;
+  }).join('');
+  $('dl_result').innerHTML = rows + `<div class="alert alert-warning mt-1" style="font-size:.8rem">⚖️ ${L('Indicative timelines only. Confirm exact limitation with a lawyer or the court.', 'केवल संकेतात्मक। सटीक परिसीमा वकील/अदालत से पुष्टि करें।', 'సూచనార్థం మాత్రమే. ఖచ్చితమైన పరిమితిని న్యాయవాది/కోర్టుతో నిర్ధారించుకోండి.')}</div>`;
+}
+function buildICS(title, iso) {
+  const d = iso.replace(/-/g, ''), end = addDays(iso, 1).toISOString().slice(0, 10).replace(/-/g, '');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+  const e = t => String(t).replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n');
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NyayaSahayak//EN', 'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT', 'UID:ns-' + Date.now() + '@nyayasahayak', 'DTSTAMP:' + stamp,
+    'DTSTART;VALUE=DATE:' + d, 'DTEND;VALUE=DATE:' + end, 'SUMMARY:' + e(title),
+    'DESCRIPTION:' + e('Reminder from NyayaSahayak — verify with your lawyer/court.'),
+    'BEGIN:VALARM', 'TRIGGER:-P1D', 'ACTION:DISPLAY', 'DESCRIPTION:' + e(title), 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+}
+function downloadICS(title, iso) {
+  const b = new Blob([buildICS(title, iso)], { type: 'text/calendar' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'nyayasahayak-reminder.ics'; a.click();
+  toast('📅 ' + L('Calendar file downloaded', 'कैलेंडर फाइल डाउनलोड', 'క్యాలెండర్ ఫైల్ డౌన్‌లోడ్ అయింది'));
+}
+
+// ============================================
+// PAGE: Free Legal Aid Eligibility (Section 12)
+// ============================================
+function renderEligibility() {
+  const ceiling = INCOME_CEILINGS[currentState] || INCOME_CEILINGS._DEFAULT;
+  return `
+    <h1 class="page-title">🎟️ ${t('eligibility')}</h1>
+    <p class="page-subtitle">${L('You may be entitled to a FREE government lawyer. Check in 30 seconds.', 'आप मुफ्त सरकारी वकील के हकदार हो सकते हैं। 30 सेकंड में जाँचें।', 'మీరు ఉచిత ప్రభుత్వ న్యాయవాదికి అర్హులు కావచ్చు. 30 సెకన్లలో తనిఖీ చేయండి.')}</p>
+    <div class="alert alert-info">📜 ${L('Under Article 39A & the Legal Services Authorities Act 1987, the State provides a free lawyer to eligible citizens — at NALSA, State, High Court, District & Taluka levels.', 'अनुच्छेद 39A व विधिक सेवा प्राधिकरण अधिनियम 1987 के तहत सरकार पात्र नागरिकों को मुफ्त वकील देती है।', 'ఆర్టికల్ 39A & లీగల్ సర్వీసెస్ అథారిటీస్ చట్టం 1987 ప్రకారం, ప్రభుత్వం అర్హులైన పౌరులకు ఉచిత న్యాయవాదిని అందిస్తుంది.')}</div>
+    <div class="card">
+      <h3 class="card-title">✅ ${L('Do any of these apply to you?', 'क्या इनमें से कोई आप पर लागू है?', 'వీటిలో ఏవైనా మీకు వర్తిస్తాయా?')}</h3>
+      ${ELIG_CATEGORIES.map(c => `<label style="display:flex;gap:.6rem;align-items:flex-start;padding:.4rem 0;cursor:pointer"><input type="checkbox" id="elig_${c.id}" style="margin-top:.25rem"><span>${esc(L(c.en, c.hi, c.te))}</span></label>`).join('')}
+      <div class="form-group mt-1"><label>${L('Your annual family income (₹) — optional', 'आपकी वार्षिक पारिवारिक आय (₹) — वैकल्पिक', 'మీ వార్షిక కుటుంబ ఆదాయం (₹) — ఐచ్ఛికం')}</label><input type="number" class="form-control" id="elig_income" placeholder="e.g. 250000"></div>
+      <p style="font-size:.8rem;color:var(--text-light)">${L('Income ceiling for', 'आय सीमा', 'ఆదాయ పరిమితి')} ${currentState ? esc(STATES_UTS[currentState].name) : L('most states', 'अधिकांश राज्य', 'చాలా రాష్ట్రాలు')}: <strong>₹${ceiling.toLocaleString('en-IN')}/${L('year', 'वर्ष', 'సంవత్సరం')}</strong> (${L('₹5,00,000 for Supreme Court cases', 'सर्वोच्च न्यायालय हेतु ₹5,00,000', 'సుప్రీంకోర్టు కేసులకు ₹5,00,000')})</p>
+      <button class="btn btn-primary" onclick="NS.checkEligibility()">🎟️ ${L('Check my eligibility', 'मेरी पात्रता जाँचें', 'నా అర్హతను తనిఖీ చేయండి')}</button>
+      <div id="elig_result" class="mt-2"></div>
+    </div>`;
+}
+function checkEligibility() {
+  const ceiling = INCOME_CEILINGS[currentState] || INCOME_CEILINGS._DEFAULT;
+  const cats = ELIG_CATEGORIES.filter(c => $('elig_' + c.id)?.checked);
+  const income = parseInt($('elig_income').value || '', 10);
+  const incomeOk = !isNaN(income) && income > 0 && income <= ceiling;
+  const eligible = cats.length > 0 || incomeOk;
+  const reasons = cats.map(c => `<li>${esc(L(c.en, c.hi, c.te))}</li>`).join('') + (incomeOk ? `<li>${L('Annual income ₹', 'वार्षिक आय ₹', 'వార్షిక ఆదాయం ₹')}${income.toLocaleString('en-IN')} ≤ ₹${ceiling.toLocaleString('en-IN')}</li>` : '');
+  const howTo = `<h4 style="margin-top:.6rem">${L('How to claim it (free)', 'कैसे प्राप्त करें (मुफ्त)', 'ఎలా పొందాలి (ఉచితం)')}:</h4>
+    <ol>
+      <li>${L('Call NALSA helpline', 'नालसा हेल्पलाइन पर कॉल करें', 'నల్సా హెల్ప్‌లైన్‌కు కాల్ చేయండి')}: <strong><a href="tel:15100">15100</a></strong></li>
+      <li>${L('Visit your nearest District Legal Services Authority (DLSA)', 'निकटतम DLSA जाएं', 'మీ సమీప DLSAను సందర్శించండి')} — <a href="#" onclick="NS.showPage('nearby');return false">${L('find on Nearby', 'पास में खोजें', 'సమీపంలో కనుగొనండి')}</a></li>
+      <li>${L('Or apply on the NALSA / Nyaya Bandhu app', 'या नालसा / न्याय बंधु ऐप पर आवेदन करें', 'లేదా నల్సా / న్యాయ బంధు యాప్‌లో దరఖాస్తు చేయండి')} — <a href="https://nalsa.gov.in/lsams/" target="_blank" rel="noopener">nalsa.gov.in</a></li>
+    </ol>`;
+  $('elig_result').innerHTML = eligible
+    ? `<div class="green-flag"><strong>✅ ${L('Good news — you are likely eligible for FREE legal aid.', 'खुशखबरी — आप संभवतः मुफ्त कानूनी सहायता के पात्र हैं।', 'శుభవార్త — మీరు ఉచిత న్యాయ సహాయానికి అర్హులే.')}</strong><ul style="margin-top:.4rem">${reasons}</ul></div>${howTo}`
+    : `<div class="yellow-flag"><strong>⚠️ ${L('You may not auto-qualify under these categories — but confirm at your DLSA, as limits vary and officers decide case by case.', 'आप इन श्रेणियों में स्वतः पात्र नहीं हो सकते — पर DLSA में पुष्टि करें, सीमाएं बदलती हैं।', 'ఈ వర్గాల కింద మీరు స్వయంచాలకంగా అర్హులు కాకపోవచ్చు — కానీ DLSAలో నిర్ధారించుకోండి, పరిమితులు మారుతుంటాయి.')}</strong></div><div class="alert alert-info" style="font-size:.85rem">${L('Everyone can still use free Lok Adalat settlements and the Tele-Law advice service.', 'सभी मुफ्त लोक अदालत और टेली-लॉ सेवा का उपयोग कर सकते हैं।', 'ప్రతి ఒక్కరూ ఉచిత లోక్ అదాలత్ మరియు టెలి-లా సలహా సేవను ఉపయోగించవచ్చు.')}</div>${howTo}`;
+  $('elig_result').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ============================================
+// PAGE: Legal Glossary (jargon buster)
+// ============================================
+function renderGlossary() {
+  return `
+    <h1 class="page-title">📖 ${t('glossary')}</h1>
+    <p class="page-subtitle">${L('Court words explained in simple language', 'अदालती शब्द सरल भाषा में', 'కోర్టు పదాలు సరళ భాషలో వివరించబడ్డాయి')}</p>
+    <div class="card"><input class="form-control" id="glossarySearch" oninput="NS.filterGlossary()" placeholder="🔍 ${L('Search a legal word…', 'कानूनी शब्द खोजें…', 'న్యాయ పదాన్ని వెతకండి…')}"></div>
+    <div id="glossaryList">${glossaryHTML('')}</div>`;
+}
+function glossaryHTML(q) {
+  const ql = (q || '').toLowerCase();
+  const items = GLOSSARY.filter(g => !ql
+    || g.term.toLowerCase().includes(ql)
+    || (g.hi || '').toLowerCase().includes(ql)
+    || (g.te || '').toLowerCase().includes(ql)
+    || (g.def.en || '').toLowerCase().includes(ql));
+  if (!items.length) return `<p style="color:var(--text-light);padding:1rem;text-align:center">${L('No matching word found', 'कोई शब्द नहीं मिला', 'పదం కనబడలేదు')}</p>`;
+  return items.map(g => `<div class="card" style="margin-bottom:.6rem;padding:1rem">
+    <strong>${esc(g.term)}</strong>${currentLang !== 'en' && g[currentLang] ? ` <span style="color:var(--text-light)">· ${esc(g[currentLang])}</span>` : ''}
+    <p style="margin-top:.35rem;font-size:.9rem;line-height:1.55">${esc(g.def[currentLang] || g.def.en)}</p>
+  </div>`).join('');
+}
+function filterGlossary() {
+  const q = $('glossarySearch')?.value || '';
+  $('glossaryList').innerHTML = glossaryHTML(q);
 }
 
 // ============================================
@@ -810,6 +943,16 @@ const handlers = {
   genDraft,
   findLocation,
   showRights,
+  checkEligibility,
+  filterGlossary,
+  updateTriggerLabel,
+  calcDeadlines,
+  icsDeadline: (i) => { const d = lastDeadlines[i]; if (d) downloadICS(d.title, d.iso); },
+  addHearingReminder: () => {
+    const iso = $('hr_date').value, note = $('hr_note').value.trim();
+    if (!iso) { toast('⚠️ ' + L('Pick a hearing date', 'सुनवाई तिथि चुनें', 'విచారణ తేదీని ఎంచుకోండి'), 'warning'); return; }
+    downloadICS(L('Court hearing', 'अदालत सुनवाई', 'కోర్టు విచారణ') + (note ? ' — ' + note : ''), iso);
+  },
   speakHelplines: () => speakHelplines(currentLang),
   speakText: (txt) => {
     if (!ttsSupported()) { toast('⚠️ ' + L('Read-aloud not supported in this browser', 'इस ब्राउज़र में सुनना समर्थित नहीं', 'ఈ బ్రౌజర్‌లో చదవడం మద్దతు లేదు'), 'warning'); return; }
