@@ -1,0 +1,17 @@
+{
+  "name": "NyayaSahayak — Free Legal Aid",
+  "short_name": "NyayaSahayak",
+  "description": "Free, private, offline legal aid for every Indian citizen — understand notices, track your case, avoid attorney fraud, and generate legal drafts in your language.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#1e3a8a",
+  "lang": "en",
+  "categories": ["government", "productivity", "utilities"],
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

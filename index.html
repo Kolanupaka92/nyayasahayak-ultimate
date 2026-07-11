@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1e3a8a">
+<meta name="description" content="NyayaSahayak — free, private, offline legal aid for every Indian citizen. Understand court notices, track your case, avoid attorney fraud, and generate legal drafts in your own language.">
+<title>NyayaSahayak — Free Legal Aid for Every Citizen</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari&family=Noto+Sans+Telugu&family=Noto+Sans+Tamil&family=Noto+Sans+Kannada&family=Noto+Sans+Malayalam&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+
+<header>
+  <div class="header-content">
+    <div class="logo" id="logo">
+      <div class="logo-icon">⚖️</div>
+      <div>
+        <div>NyayaSahayak</div>
+        <div class="logo-tagline">AI Legal Shield · Private · Offline</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <select id="stateSelect"><option value="">📍 State</option></select>
+      <select id="districtSelect" style="display:none"><option value="">📍 District</option></select>
+      <select id="languageSelect" aria-label="Language">
+        <option value="en">EN</option><option value="hi">हिं</option><option value="te">తె</option>
+        <option value="ta">த</option><option value="kn">ಕ</option><option value="bn">ব</option>
+        <option value="mr">म</option><option value="gu">ગુ</option><option value="pa">ਪੰ</option>
+        <option value="ml">മ</option><option value="or">ଓ</option><option value="ur">اُر</option>
+      </select>
+      <button class="icon-btn" id="themeBtn" title="Toggle theme">🌓</button>
+      <button class="icon-btn" id="lockBtn" title="Encrypt with PIN" style="display:none">🔒</button>
+    </div>
+  </div>
+</header>
+
+<div class="offline-banner" id="offlineBanner">📡 You are offline — the app still works fully on this device.</div>
+
+<div class="container">
+  <nav class="sidebar" id="sidebar"></nav>
+  <main id="mainContent"></main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+<div class="modal" id="modal"><div class="modal-content" id="modalContent"></div></div>
+
+<noscript>
+  <div style="padding:2rem;text-align:center">This app needs JavaScript enabled. Please enable it to use NyayaSahayak.</div>
+</noscript>
+
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>
