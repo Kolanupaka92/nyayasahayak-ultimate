@@ -9,7 +9,7 @@ import { STATES_UTS, RED_FLAGS_DB, I18N } from './districts-data.js';
 import { analyzeNotice } from './ai-engine.js';
 import { nearbyServices, mapLink, getCoords } from './geolocation.js';
 import { lookupTargets, statusSummary, isValidCNR } from './ecourts-api.js';
-import { speak, speakHelplines, isSupported as ttsSupported } from './ivr.js';
+import { speak, speakHelplines, isSupported as ttsSupported, startDictation, stopDictation, sttSupported, isDictating } from './ivr.js';
 import { encryptData, decryptData, unlockWithPin, hashPin, isUnlocked } from './encryption.js';
 
 // ---------- State ----------
@@ -192,6 +192,7 @@ function showPage(id) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function renderCurrentPage() {
+  stopDictation(); // end any voice input before the DOM is swapped
   const fns = { dashboard: renderDashboard, mycase: renderMyCase, cases: renderCaseStatus, guide: renderGuide, redflags: renderRedFlags, attorney: renderAttorney, analyzer: renderAnalyzer, drafts: renderDrafts, nearby: renderNearby, rights: renderRights, helpline: renderHelpline };
   $('mainContent').innerHTML = `<div class="page">${(fns[currentPage] || renderDashboard)()}</div>`;
   if (currentPage === 'mycase') afterMyCaseRender();
@@ -561,8 +562,14 @@ function renderAnalyzer() {
     <div class="card">
       <div class="tabs"><div class="tab active" onclick="NS.switchAn('text', this)">⌨️ ${L('Text', 'टेक्स्ट', 'టెక్స్ట్')}</div><div class="tab" onclick="NS.switchAn('file', this)">📤 ${L('File', 'फाइल', 'ఫైల్')}</div></div>
       <div id="an-text">
-        <div class="form-group"><label>${L('Notice Text', 'नोटिस पाठ', 'నోటీసు వచనం')}</label><textarea class="form-control" id="noticeTxt" style="min-height:130px" placeholder="${L('Paste the court notice / legal document text here', 'यहाँ नोटिस का पाठ पेस्ट करें', 'కోర్టు నోటీసు / న్యాయ పత్రం వచనాన్ని ఇక్కడ పేస్ట్ చేయండి')}"></textarea></div>
-        <button class="btn btn-primary" onclick="NS.analyze()">🔍 ${L('Analyze', 'विश्लेषण', 'విశ్లేషించండి')}</button>
+        <div class="form-group"><label>${L('Notice Text', 'नोटिस पाठ', 'నోటీసు వచనం')}</label><textarea class="form-control" id="noticeTxt" style="min-height:130px" placeholder="${L('Type, paste, or tap the mic and speak', 'टाइप करें, पेस्ट करें, या माइक दबाकर बोलें', 'టైప్ చేయండి, పేస్ట్ చేయండి, లేదా మైక్ నొక్కి మాట్లాడండి')}"></textarea></div>
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="NS.analyze()">🔍 ${L('Analyze', 'विश्लेषण', 'విశ్లేషించండి')}</button>
+          <button class="btn btn-outline" id="micBtn" onclick="NS.toggleDictation()">🎤 ${L('Speak', 'बोलें', 'మాట్లాడండి')}</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('noticeTxt').value='';document.getElementById('micStatus').textContent='';">🧹 ${L('Clear', 'साफ करें', 'తుడిచివేయి')}</button>
+        </div>
+        <p id="micStatus" style="font-size:.82rem;color:var(--text-light);margin-top:.5rem;min-height:1.1em"></p>
+        <p style="font-size:.78rem;color:var(--text-light)">🎙️ ${L('Speaking language follows the app language (top-right). Currently', 'बोलने की भाषा ऐप भाषा (ऊपर दाएँ) के अनुसार है। अभी', 'మాట్లాడే భాష యాప్ భాష (కుడి పైన) ప్రకారం ఉంటుంది. ప్రస్తుతం')}: <strong>${speakLangLabel()}</strong></p>
       </div>
       <div id="an-file" style="display:none">
         <div class="upload-zone" onclick="document.getElementById('fileIn').click()"><div class="upload-icon">📁</div><p>${L('Upload .txt for full analysis (PDF/image: metadata only)', '.txt अपलोड करें', 'పూర్తి విశ్లేషణ కోసం .txt అప్‌లోడ్ చేయండి (PDF/చిత్రం: మెటాడేటా మాత్రమే)')}</p><input type="file" id="fileIn" hidden accept=".pdf,.jpg,.png,.txt"></div>
@@ -613,10 +620,52 @@ function runAnalyze() {
   res.style.display = 'block';
 }
 function switchAn(tab, el) {
+  stopDictation();
   document.querySelectorAll('#mainContent .tab').forEach(t => t.classList.remove('active'));
   el?.classList.add('active');
   $('an-text').style.display = tab === 'text' ? 'block' : 'none';
   $('an-file').style.display = tab === 'file' ? 'block' : 'none';
+}
+
+// Human-readable label of the language dictation will listen in.
+function speakLangLabel() {
+  return { en: 'English', hi: 'हिन्दी (Hindi)', te: 'తెలుగు (Telugu)' }[currentLang] || 'English (en-IN)';
+}
+
+// Voice-input toggle for the analyzer textarea.
+let dictateBase = '';
+function toggleDictation() {
+  const btn = $('micBtn'), status = $('micStatus'), ta = $('noticeTxt');
+  if (!btn || !ta) return;
+  if (isDictating()) { stopDictation(); return; }
+  if (!sttSupported()) {
+    toast('⚠️ ' + L('Voice input not supported in this browser', 'इस ब्राउज़र में आवाज इनपुट समर्थित नहीं', 'ఈ బ్రౌజర్‌లో వాయిస్ ఇన్‌పుట్ మద్దతు లేదు'), 'warning');
+    if (status) status.textContent = L('Tip: use Chrome on Android/desktop for voice.', 'सुझाव: आवाज के लिए Chrome उपयोग करें।', 'చిట్కా: వాయిస్ కోసం Chrome వాడండి.');
+    return;
+  }
+  dictateBase = ta.value ? ta.value.replace(/\s+$/, '') + ' ' : '';
+  const started = startDictation(currentLang, {
+    onStart: () => {
+      btn.classList.add('mic-live'); btn.innerHTML = '⏹️ ' + L('Stop', 'रोकें', 'ఆపండి');
+      if (status) status.textContent = '🔴 ' + L('Listening… speak now', 'सुन रहे हैं… अब बोलिए', 'వింటున్నాం… ఇప్పుడు మాట్లాడండి');
+    },
+    onInterim: t => { ta.value = dictateBase + t; },
+    onFinal: t => { dictateBase = (dictateBase + t).replace(/\s+$/, '') + ' '; ta.value = dictateBase; },
+    onEnd: () => {
+      btn.classList.remove('mic-live'); btn.innerHTML = '🎤 ' + L('Speak', 'बोलें', 'మాట్లాడండి');
+      if (status) status.textContent = ta.value.trim() ? '✅ ' + L('Captured. Tap Analyze or speak again.', 'मिल गया। विश्लेषण दबाएं या फिर बोलें।', 'లభించింది. విశ్లేషించు నొక్కండి లేదా మళ్ళీ మాట్లాడండి.') : '';
+    },
+    onError: err => {
+      const map = {
+        'not-allowed': L('Microphone permission denied', 'माइक्रोफोन अनुमति अस्वीकृत', 'మైక్రోఫోన్ అనుమతి నిరాకరించబడింది'),
+        'no-speech': L('No speech detected — try again', 'कोई आवाज नहीं मिली — फिर कोशिश करें', 'మాట వినిపించలేదు — మళ్ళీ ప్రయత్నించండి'),
+        'network': L('Network needed for voice recognition', 'आवाज पहचान के लिए नेटवर्क चाहिए', 'వాయిస్ గుర్తింపుకు నెట్‌వర్క్ అవసరం'),
+        'audio-capture': L('No microphone found', 'माइक्रोफोन नहीं मिला', 'మైక్రోఫోన్ కనబడలేదు')
+      };
+      toast('⚠️ ' + (map[err] || err), 'warning');
+    }
+  });
+  if (!started) toast('⚠️ ' + L('Could not start voice input', 'आवाज इनपुट शुरू नहीं हुआ', 'వాయిస్ ఇన్‌పుట్ ప్రారంభించలేకపోయాం'), 'warning');
 }
 
 // ============================================
@@ -755,6 +804,7 @@ const handlers = {
   analyzeRF,
   addLog,
   switchAn,
+  toggleDictation,
   analyze: runAnalyze,
   openDraft,
   genDraft,

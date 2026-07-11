@@ -13,7 +13,7 @@ A **privacy-first, offline-capable Progressive Web App** that helps ordinary cit
 | 🛣️ **Step Guide** | Three action paths — DIY, Hybrid, Full Attorney — with timelines & document checklists. |
 | 🚨 **Red Flags** | 15+ attorney-fraud warning signs and a quick self-check. |
 | 👨‍⚖️ **Attorney Monitor** | Log every interaction with your lawyer and verify Bar Council enrollment. |
-| 🔍 **AI Analyzer** | On-device notice analysis — language & category detection, date/amount extraction, plain-language explanation. |
+| 🔍 **AI Analyzer** | On-device notice analysis — language & category detection, date/amount extraction, plain-language explanation. **🎤 Voice input:** speak your notice in English / Hindi / Telugu and it is transcribed to text (Web Speech API). |
 | ✍️ **Drafts** | Generate print-ready legal drafts (appeal, bail, FIR, RTI, legal notice, affidavit…). |
 | 📍 **Nearby** | Courts, police, DLSA & hospitals near you (GPS or district-based). |
 | 📚 **Rights** | Know your rights — arrest, women, consumer, tenant, worker, FIR. |

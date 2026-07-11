@@ -163,6 +163,10 @@ li { margin-bottom: .4rem; line-height: 1.7; font-size: .92rem; }
 pre.draft { white-space: pre-wrap; font-family: inherit; font-size: .85rem; line-height: 1.6; padding: .8rem; background: var(--bg); border-radius: 6px; max-height: 400px; overflow-y: auto; }
 .emergency-num { font-size: 1.3rem; color: var(--danger); font-weight: 700; }
 
+/* Live microphone (dictation active) */
+.btn.mic-live { background: var(--danger); color: #fff; border-color: var(--danger); animation: micPulse 1.2s infinite; }
+@keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.5); } 50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); } }
+
 @media (max-width: 768px) {
   .container { grid-template-columns: 1fr; padding: .5rem; }
   nav.sidebar { position: fixed; bottom: 0; left: 0; right: 0; top: auto; display: flex; overflow-x: auto; padding: .4rem; max-height: none; border-radius: 0; z-index: 50; }

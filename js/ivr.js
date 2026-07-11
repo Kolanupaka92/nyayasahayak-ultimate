@@ -1,8 +1,11 @@
 // ============================================
-// ivr.js — voice help (text-to-speech) for low-literacy users
-// Uses the browser SpeechSynthesis API. Provides read-aloud
-// for helplines, rights and any arbitrary text, in the
-// user's chosen language where a voice is available.
+// ivr.js — voice help for low-literacy users
+// Text-to-speech (SpeechSynthesis): read helplines, rights,
+//   and arbitrary text aloud in the chosen language.
+// Speech-to-text (SpeechRecognition): dictate notice text by
+//   speaking in English / Hindi / Telugu (and other Indian langs
+//   where the browser has a voice model).
+// Both stay on the device via the browser's built-in engines.
 // ============================================
 
 const VOICE_LANG = {
@@ -27,6 +30,52 @@ export function speak(text, lang = 'en') {
 
 export function stop() {
   if (isSupported()) window.speechSynthesis.cancel();
+}
+
+// ---------- Speech-to-text (dictation) ----------
+let recognition = null;
+
+export function sttSupported() {
+  return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
+}
+
+export function isDictating() {
+  return recognition !== null;
+}
+
+// Start dictation. Callbacks: onStart, onInterim(text), onFinal(text),
+// onEnd, onError(errorCode). Returns false if unsupported.
+export function startDictation(lang = 'en', cb = {}) {
+  if (!sttSupported()) return false;
+  stopDictation();
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = VOICE_LANG[lang] || 'en-IN';
+  recognition.interimResults = true;
+  recognition.continuous = true;
+  recognition.maxAlternatives = 1;
+  recognition.onstart = () => cb.onStart && cb.onStart();
+  recognition.onerror = e => cb.onError && cb.onError(e.error || 'error');
+  recognition.onend = () => { recognition = null; cb.onEnd && cb.onEnd(); };
+  recognition.onresult = e => {
+    let interim = '', final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const txt = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += txt;
+      else interim += txt;
+    }
+    if (final && cb.onFinal) cb.onFinal(final);
+    if (interim && cb.onInterim) cb.onInterim(interim);
+  };
+  try { recognition.start(); } catch (err) { recognition = null; return false; }
+  return true;
+}
+
+export function stopDictation() {
+  if (recognition) {
+    try { recognition.stop(); } catch (e) {}
+    recognition = null;
+  }
 }
 
 // Prebuilt helpline script read-aloud.
