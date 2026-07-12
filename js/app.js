@@ -12,6 +12,7 @@ import { lookupTargets, statusSummary, isValidCNR } from './ecourts-api.js';
 import { ELIG_CATEGORIES, INCOME_CEILINGS, LIMITATION, GLOSSARY } from './legal-data.js';
 import { speak, speakHelplines, isSupported as ttsSupported, hasVoiceFor, startDictation, stopDictation, sttSupported, isDictating } from './ivr.js';
 import { encryptData, decryptData, unlockWithPin, hashPin, isUnlocked } from './encryption.js';
+import { putDoc, getDoc, deleteDocsForCase, extractText, isStorageSupported } from './storage.js';
 
 // ---------- State ----------
 let currentLang = 'en';
@@ -202,6 +203,18 @@ function renderCurrentPage() {
   if (currentPage === 'analyzer') afterAnalyzerRender();
   if (currentPage === 'attorney') renderLogs();
   if (currentPage === 'cases') updateTriggerLabel();
+  if (currentPage === 'guide') loadCaseDocs();
+}
+function loadCaseDocs() {
+  const el = $('caseDocs'); if (!el || !currentCase) return;
+  const docs = currentCase.docs || [];
+  if (!docs.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="card"><h3 class="card-title">📎 ${L('Case Documents', 'मामले के दस्तावेज', 'కేసు పత్రాలు')} (${docs.length})</h3>
+    ${docs.map(d => `<div class="case-item">
+      <div><strong>${esc(d.name)}</strong> <small>(${(d.size / 1024).toFixed(0)}KB)</small> ${d.hasText ? `<span class="badge badge-success">${L('text ready', 'टेक्स्ट तैयार', 'టెక్స్ట్ సిద్ధం')}</span>` : `<span class="badge badge-info">${L('view only', 'केवल देखें', 'చూడటానికి మాత్రమే')}</span>`}</div>
+      <div class="btn-group">${d.docId ? `<button class="btn btn-outline btn-sm" onclick="NS.viewDoc('${d.docId}')">👁️ ${L('View', 'देखें', 'చూడండి')}</button>${d.hasText ? `<button class="btn btn-primary btn-sm" onclick="NS.analyzeDoc('${d.docId}')">🔍 ${L('Analyze', 'विश्लेषण', 'విశ్లేషించండి')}</button>` : ''}` : `<span class="badge badge-warning">${L('not stored', 'सहेजा नहीं', 'సేవ్ కాలేదు')}</span>`}</div>
+    </div>`).join('')}
+    <p style="font-size:.8rem;color:var(--text-light);margin-top:.5rem">🔒 ${L('Files are stored only on this device.', 'फाइलें केवल इस डिवाइस पर संग्रहीत हैं।', 'ఫైల్‌లు ఈ పరికరంలో మాత్రమే నిల్వ చేయబడతాయి.')}</p></div>`;
 }
 
 // ---------- Toast / Modal ----------
@@ -354,15 +367,18 @@ function caseTypes() {
 function afterMyCaseRender() {
   const form = $('caseForm'); if (!form) return;
   form.addEventListener('submit', saveCaseForm);
-  $('docInput')?.addEventListener('change', e => {
-    Array.from(e.target.files).forEach(f => currentDocs.push({ name: f.name, size: f.size }));
+  $('docInput')?.addEventListener('change', async e => {
+    for (const f of Array.from(e.target.files)) {
+      const { text, extractable } = await extractText(f);
+      currentDocs.push({ name: f.name, type: f.type, size: f.size, blob: f, text, extractable });
+    }
     renderDocList();
   });
   renderDocList();
 }
 function renderDocList() {
   const el = $('docList'); if (!el) return;
-  el.innerHTML = currentDocs.map((d, i) => `<div class="case-item"><span>📎 ${esc(d.name)} (${(d.size / 1024).toFixed(1)}KB)</span><button type="button" class="btn btn-danger btn-sm" onclick="NS.removeDoc(${i})">×</button></div>`).join('');
+  el.innerHTML = currentDocs.map((d, i) => `<div class="case-item"><span>📎 ${esc(d.name)} <small>(${(d.size / 1024).toFixed(1)}KB)</small> ${d.extractable ? `<span class="badge badge-success">${L('text ready', 'टेक्स्ट तैयार', 'టెక్స్ట్ సిద్ధం')}</span>` : `<span class="badge badge-info">${L('stored', 'सहेजा', 'సేవ్')}</span>`}</span><button type="button" class="btn btn-danger btn-sm" onclick="NS.removeDoc(${i})">×</button></div>`).join('');
 }
 async function saveCaseForm(e) {
   e.preventDefault();
@@ -372,10 +388,20 @@ async function saveCaseForm(e) {
     desc: $('c_desc').value, court: $('c_court').value, num: $('c_num').value,
     cnr: $('c_num').value, hasAtt: $('c_hasAtt').value,
     att: $('c_hasAtt').value === 'yes' ? { name: $('c_attName').value, enroll: $('c_attEnroll').value, fee: $('c_attFee').value, pay: $('c_attPay').value } : null,
-    docs: [...currentDocs], budget: $('c_budget').value,
+    docs: [], budget: $('c_budget').value,
     state: currentState, district: currentDistrict,
     created: new Date().toISOString(), status: 'active', redFlags: [], logs: []
   };
+  // Persist real file content to IndexedDB; keep only refs in the case record.
+  for (const dc of currentDocs) {
+    const docId = 'DOC-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+    try {
+      await putDoc({ id: docId, caseId: c.id, name: dc.name, type: dc.type, size: dc.size, blob: dc.blob, text: dc.text || '' });
+      c.docs.push({ docId, name: dc.name, type: dc.type, size: dc.size, hasText: !!dc.text });
+    } catch (err) {
+      c.docs.push({ docId: null, name: dc.name, type: dc.type, size: dc.size, hasText: false });
+    }
+  }
   cases.push(c); await saveCases();
   currentDocs = []; currentCase = c;
   toast('✅ ' + L('Case saved', 'मामला सहेजा', 'కేసు సేవ్ చేయబడింది') + ': ' + c.id);
@@ -581,6 +607,7 @@ function renderGuide() {
     <h1 class="page-title">🛣️ ${t('guide')}</h1>
     <p class="page-subtitle">${L('Choose how you want to handle', 'अपना रास्ता चुनें', 'మీరు ఎలా వ్యవహరించాలనుకుంటున్నారో ఎంచుకోండి')} — ${esc(currentCase.id)}</p>
     <div class="card"><h3 class="card-title">📋 ${esc(currentCase.id)}</h3><p>${L('Type', 'प्रकार', 'రకం')}: <strong>${esc(currentCase.type)}</strong> | ${L('Court', 'अदालत', 'కోర్టు')}: <strong>${esc(currentCase.court || 'TBD')}</strong></p></div>
+    <div id="caseDocs"></div>
     <div class="grid">
       <div class="path-card" onclick="NS.selectPath('diy')"><h4>🛠️ DIY</h4><p>${L('Handle yourself', 'स्वयं करें', 'మీరే చేయండి')}</p><div class="path-meta"><span>💰 ₹0-5K</span><span>⏰ 30-90 ${L('days', 'दिन', 'రోజులు')}</span></div></div>
       <div class="path-card" onclick="NS.selectPath('hybrid')"><h4>🤝 Hybrid</h4><p>${L('Consult + self-file', 'परामर्श + स्वयं', 'సలహా + మీరే దాఖలు')}</p><div class="path-meta"><span>💰 ₹5K-25K</span><span>⏰ 30-60 ${L('days', 'दिन', 'రోజులు')}</span></div></div>
@@ -715,7 +742,7 @@ function renderAnalyzer() {
         <p style="font-size:.78rem;color:var(--text-light)">🎙️ ${L('Speaking language follows the app language (top-right). Currently', 'बोलने की भाषा ऐप भाषा (ऊपर दाएँ) के अनुसार है। अभी', 'మాట్లాడే భాష యాప్ భాష (కుడి పైన) ప్రకారం ఉంటుంది. ప్రస్తుతం')}: <strong>${speakLangLabel()}</strong></p>
       </div>
       <div id="an-file" style="display:none">
-        <div class="upload-zone" onclick="document.getElementById('fileIn').click()"><div class="upload-icon">📁</div><p>${L('Upload .txt for full analysis (PDF/image: metadata only)', '.txt अपलोड करें', 'పూర్తి విశ్లేషణ కోసం .txt అప్‌లోడ్ చేయండి (PDF/చిత్రం: మెటాడేటా మాత్రమే)')}</p><input type="file" id="fileIn" hidden accept=".pdf,.jpg,.png,.txt"></div>
+        <div class="upload-zone" onclick="document.getElementById('fileIn').click()"><div class="upload-icon">📁</div><p>${L('Upload a file — .txt is analyzed instantly; PDF/image can be viewed', 'फाइल अपलोड करें — .txt तुरंत विश्लेषित; PDF/छवि देखी जा सकती है', 'ఫైల్ అప్‌లోడ్ చేయండి — .txt వెంటనే విశ్లేషించబడుతుంది; PDF/చిత్రం చూడవచ్చు')}</p><input type="file" id="fileIn" hidden accept=".pdf,.jpg,.png,.txt"></div>
       </div>
       <div id="analysisRes" class="mt-2" style="display:none"></div>
     </div>`;
@@ -728,12 +755,19 @@ function afterAnalyzerRender() {
       r.onload = ev => { switchAn('text', document.querySelector('#mainContent .tab')); $('noticeTxt').value = ev.target.result; runAnalyze(); };
       r.readAsText(f);
     } else {
+      lastAnalyzerFile = f;
       const res = $('analysisRes');
-      res.innerHTML = `<div class="result-box"><h4>📋 ${L('File received', 'फाइल प्राप्त', 'ఫైల్ అందింది')}</h4><p>${esc(f.name)} — ${(f.size / 1024).toFixed(1)} KB (${esc(f.type || 'unknown')})</p><div class="alert alert-info">${L('For full analysis, copy the text and paste it in the Text tab.', 'पूर्ण विश्लेषण के लिए टेक्स्ट कॉपी करके पेस्ट करें।', 'పూర్తి విశ్లేషణ కోసం, వచనాన్ని కాపీ చేసి టెక్స్ట్ ట్యాబ్‌లో పేస్ట్ చేయండి.')}</div></div>`;
+      const isImg = (f.type || '').startsWith('image/');
+      res.innerHTML = `<div class="result-box"><h4>📄 ${esc(f.name)}</h4><p style="color:var(--text-light);font-size:.85rem">${(f.size / 1024).toFixed(1)} KB · ${esc(f.type || 'file')}</p>
+        <button class="btn btn-outline btn-sm" onclick="NS.viewAnalyzerFile()">👁️ ${L('Open file', 'फाइल खोलें', 'ఫైల్ తెరవండి')}</button>
+        <div class="alert alert-info mt-1" style="font-size:.85rem">${isImg
+          ? L('This is an image. Reading text from photos/scans (OCR) is not available offline — type or speak the notice text in the Text tab to analyze it.', 'यह एक छवि है। फोटो/स्कैन से टेक्स्ट पढ़ना (OCR) ऑफलाइन उपलब्ध नहीं — टेक्स्ट टैब में लिखें या बोलें।', 'ఇది చిత్రం. ఫోటోలు/స్కాన్‌ల నుండి టెక్స్ట్ చదవడం (OCR) ఆఫ్‌లైన్‌లో అందుబాటులో లేదు — టెక్స్ట్ ట్యాబ్‌లో టైప్ చేయండి లేదా మాట్లాడండి.')
+          : L('For a PDF, open it, copy the text and paste it in the Text tab (or use 🎤 Speak) to analyze.', 'PDF के लिए, उसे खोलें, टेक्स्ट कॉपी कर टेक्स्ट टैब में पेस्ट करें।', 'PDF కోసం, దాన్ని తెరిచి, టెక్స్ట్ కాపీ చేసి టెక్స్ట్ ట్యాబ్‌లో పేస్ట్ చేయండి.')}</div></div>`;
       res.style.display = 'block';
     }
   });
 }
+let lastAnalyzerFile = null;
 function runAnalyze() {
   const txt = $('noticeTxt').value.trim();
   if (!txt) { toast('⚠️ ' + L('Enter some text', 'कुछ टेक्स्ट दर्ज करें', 'కొంత వచనాన్ని నమోదు చేయండి'), 'warning'); return; }
@@ -983,7 +1017,29 @@ const handlers = {
     if (tab === 'list') renderCaseList();
   },
   openCase: (id) => { currentCase = cases.find(c => c.id === id); toast('📂 ' + id); showPage('guide'); },
-  deleteCase: async (id) => { if (!confirm(L('Delete this case?', 'मामला हटाएं?', 'ఈ కేసును తొలగించాలా?'))) return; cases = cases.filter(c => c.id !== id); if (currentCase?.id === id) currentCase = null; await saveCases(); renderCaseList(); renderSidebar(); },
+  deleteCase: async (id) => { if (!confirm(L('Delete this case?', 'मामला हटाएं?', 'ఈ కేసును తొలగించాలా?'))) return; await deleteDocsForCase(id).catch(() => {}); cases = cases.filter(c => c.id !== id); if (currentCase?.id === id) currentCase = null; await saveCases(); renderCaseList(); renderSidebar(); },
+  viewAnalyzerFile: () => {
+    if (!lastAnalyzerFile) return;
+    const url = URL.createObjectURL(lastAnalyzerFile);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  },
+  viewDoc: async (docId) => {
+    try {
+      const d = await getDoc(docId);
+      if (!d || !d.blob) { toast('⚠️ ' + L('File not found', 'फाइल नहीं मिली', 'ఫైల్ కనబడలేదు'), 'warning'); return; }
+      const url = URL.createObjectURL(d.blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { toast('⚠️ ' + L('Could not open file', 'फाइल नहीं खुली', 'ఫైల్ తెరవలేకపోయాం'), 'warning'); }
+  },
+  analyzeDoc: async (docId) => {
+    const d = await getDoc(docId).catch(() => null);
+    if (!d) { toast('⚠️ ' + L('File not found', 'फाइल नहीं मिली', 'ఫైల్ కనబడలేదు'), 'warning'); return; }
+    if (!d.text) { toast('⚠️ ' + L('No readable text — open it and paste the text to analyze', 'पठनीय टेक्स्ट नहीं — खोलकर टेक्स्ट पेस्ट करें', 'చదవగల టెక్స్ట్ లేదు — తెరిచి టెక్స్ట్ పేస్ట్ చేయండి'), 'warning'); return; }
+    showPage('analyzer');
+    const ta = $('noticeTxt'); if (ta) { ta.value = d.text; runAnalyze(); }
+  },
   checkCNR: () => { const v = $('cnrIn').value; $('cnrResult').innerHTML = isValidCNR(v) ? `<div class="green-flag">✅ ${L('Valid CNR format. Look it up on the District Court portal above.', 'सही CNR प्रारूप। ऊपर पोर्टल पर खोजें।', 'సరైన CNR ఫార్మాట్. పైన ఉన్న జిల్లా కోర్టు పోర్టల్‌లో వెతకండి.')}</div>` : `<div class="yellow-flag">⚠️ ${L('Not a valid 16-character CNR. Example: DLHC010001232024', 'मान्य CNR नहीं। उदाहरण: DLHC010001232024', 'చెల్లుబాటు అయ్యే 16-అక్షరాల CNR కాదు. ఉదా: DLHC010001232024')}</div>`; },
   copyDraft: () => { navigator.clipboard?.writeText(lastDraft); toast('📋 ' + L('Copied', 'कॉपी किया', 'కాపీ చేయబడింది')); },
   printDraft: () => { const w = window.open('', '', 'width=800,height=600'); w.document.write('<html><body style="padding:30px;font-family:Arial,sans-serif"><pre style="white-space:pre-wrap">' + esc(lastDraft) + '</pre><scr' + 'ipt>window.print()</scr' + 'ipt></body></html>'); w.document.close(); },
