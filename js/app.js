@@ -231,6 +231,16 @@ function renderDashboard() {
     <p class="page-subtitle">${L('Free legal help for every citizen — private, offline, in your language', 'हर नागरिक के लिए मुफ्त कानूनी मदद — निजी, ऑफलाइन, आपकी भाषा में', 'ప్రతి పౌరుడికి ఉచిత న్యాయ సహాయం — గోప్యం, ఆఫ్‌లైన్, మీ భాషలో')}</p>
     ${st ? `<div class="alert alert-info"><strong>📍 ${esc(st.name)}</strong>${currentDistrict ? ` › ${esc(currentDistrict)}` : ''}<br>🏛️ ${esc(st.hc)} &nbsp;|&nbsp; 📜 ${esc(st.landLaw)}${st.portal ? `<br>🌐 <a href="${st.portal}" target="_blank" rel="noopener">${st.portal}</a>` : ''}</div>`
       : `<div class="alert alert-warning">⚠️ ${L('Please select your State (top-right) for local court & law info', 'ऊपर दाईं ओर अपना राज्य चुनें', 'స్థానిక కోర్టు & చట్ట సమాచారం కోసం మీ రాష్ట్రాన్ని (కుడి పైన) ఎంచుకోండి')}</div>`}
+    ${cases.length
+      ? `<div class="card"><h3 class="card-title">📂 ${L('Your Cases', 'आपके मामले', 'మీ కేసులు')} (${cases.length})</h3>
+          ${cases.slice().reverse().map(c => `<div class="case-item">
+            <div><strong>${esc(c.id)}</strong> — ${esc((c.type || '').toUpperCase())}${c.redFlags?.length ? ` <span class="badge badge-danger">🚨 ${c.redFlags.length}</span>` : ''}<br><small>${esc(c.name || '')} · ${esc(c.court || L('Court TBD', 'अदालत तय नहीं', 'కోర్టు నిర్ణయించలేదు'))} · ${new Date(c.created).toLocaleDateString('en-IN')}</small></div>
+            <div class="btn-group"><button class="btn btn-primary btn-sm" onclick="NS.openCase('${c.id}')">${L('Open', 'खोलें', 'తెరవండి')}</button></div>
+          </div>`).join('')}
+          <button class="btn btn-outline btn-sm mt-1" onclick="NS.showPage('mycase')">➕ ${L('Add another case', 'नया मामला जोड़ें', 'మరో కేసు జోడించండి')}</button></div>`
+      : `<div class="card"><h3 class="card-title">📂 ${L('Your Cases', 'आपके मामले', 'మీ కేసులు')}</h3>
+          <p style="color:var(--text-light)">${L('No cases yet. Add your first case to track it, get a step-by-step guide, deadline reminders and fraud checks.', 'अभी कोई मामला नहीं। पहला मामला जोड़ें और मार्गदर्शन, रिमाइंडर व जाँच पाएं।', 'ఇంకా కేసులు లేవు. మీ మొదటి కేసును జోడించి మార్గదర్శిని, గడువు రిమైండర్‌లు & మోసం తనిఖీలు పొందండి.')}</p>
+          <button class="btn btn-primary" onclick="NS.showPage('mycase')">📋 ${L('Add my case', 'मेरा मामला जोड़ें', 'నా కేసును జోడించండి')}</button></div>`}
     <div class="grid">
       ${PAGES.filter(p => p.id !== 'dashboard').map(p => `
         <div class="feature-card" onclick="NS.showPage('${p.id}')">
