@@ -557,12 +557,18 @@ function checkEligibility() {
   const incomeOk = !isNaN(income) && income > 0 && income <= ceiling;
   const eligible = cats.length > 0 || incomeOk;
   const reasons = cats.map(c => `<li>${esc(L(c.en, c.hi, c.te))}</li>`).join('') + (incomeOk ? `<li>${L('Annual income ₹', 'वार्षिक आय ₹', 'వార్షిక ఆదాయం ₹')}${income.toLocaleString('en-IN')} ≤ ₹${ceiling.toLocaleString('en-IN')}</li>` : '');
-  const howTo = `<h4 style="margin-top:.6rem">${L('How to claim it (free)', 'कैसे प्राप्त करें (मुफ्त)', 'ఎలా పొందాలి (ఉచితం)')}:</h4>
+  const howTo = `<h4 style="margin-top:.8rem">${L('How to apply — it is completely FREE', 'आवेदन कैसे करें — पूरी तरह नि:शुल्क', 'ఎలా దరఖాస్తు చేయాలి — పూర్తిగా ఉచితం')}:</h4>
+    <p style="font-size:.85rem;color:var(--text-light)">${L('Apply in ANY one of these ways — there is no fee for the form or for legal aid:', 'इनमें से किसी भी एक तरीके से आवेदन करें — फॉर्म या सहायता के लिए कोई शुल्क नहीं:', 'వీటిలో ఏదైనా ఒక విధంగా దరఖాస్తు చేయండి — ఫారం లేదా సహాయానికి ఎలాంటి రుసుము లేదు:')}</p>
     <ol>
-      <li>${L('Call NALSA helpline', 'नालसा हेल्पलाइन पर कॉल करें', 'నల్సా హెల్ప్‌లైన్‌కు కాల్ చేయండి')}: <strong><a href="tel:15100">15100</a></strong></li>
-      <li>${L('Visit your nearest District Legal Services Authority (DLSA)', 'निकटतम DLSA जाएं', 'మీ సమీప DLSAను సందర్శించండి')} — <a href="#" onclick="NS.showPage('nearby');return false">${L('find on Nearby', 'पास में खोजें', 'సమీపంలో కనుగొనండి')}</a></li>
-      <li>${L('Or apply on the NALSA / Nyaya Bandhu app', 'या नालसा / न्याय बंधु ऐप पर आवेदन करें', 'లేదా నల్సా / న్యాయ బంధు యాప్‌లో దరఖాస్తు చేయండి')} — <a href="https://nalsa.gov.in/lsams/" target="_blank" rel="noopener">nalsa.gov.in</a></li>
-    </ol>`;
+      <li><strong>${L('Online', 'ऑनलाइन', 'ఆన్‌లైన్')}</strong> — <a href="https://nalsa.gov.in/lsams/" target="_blank" rel="noopener">nalsa.gov.in</a> ${L('(24/7; fill the form, get an application number to track)', '(24/7; फॉर्म भरें, ट्रैकिंग हेतु आवेदन संख्या पाएं)', '(24/7; ఫారం నింపండి, ట్రాక్ చేయడానికి దరఖాస్తు నంబర్ పొందండి)')}</li>
+      <li><strong>${L('In person', 'व्यक्तिगत रूप से', 'ప్రత్యక్షంగా')}</strong> — ${L('DLSA front office at the district court complex', 'जिला न्यायालय परिसर में DLSA फ्रंट ऑफिस', 'జిల్లా కోర్టు ప్రాంగణంలో DLSA ఫ్రంట్ ఆఫీస్')} <a href="#" onclick="NS.showPage('nearby');return false">(${L('find nearby', 'पास में खोजें', 'సమీపంలో కనుగొనండి')})</a></li>
+      <li><strong>${L('Phone', 'फोन', 'ఫోన్')}</strong> — ${L('NALSA helpline', 'नालसा हेल्पलाइन', 'నల్సా హెల్ప్‌లైన్')} <strong><a href="tel:15100">15100</a></strong> ${L('or NALSA / Nyaya Bandhu app', 'या नालसा / न्याय बंधु ऐप', 'లేదా నల్సా / న్యాయ బంధు యాప్')}</li>
+      <li><strong>${L('By post or email', 'डाक या ईमेल द्वारा', 'పోస్ట్ లేదా ఇమెయిల్ ద్వారా')}</strong> — ${L('to your DLSA / State Legal Services Authority', 'अपने DLSA / राज्य प्राधिकरण को', 'మీ DLSA / రాష్ట్ర అథారిటీకి')}</li>
+    </ol>
+    <p style="font-size:.85rem"><strong>📎 ${L('Documents to attach', 'संलग्न करने योग्य दस्तावेज', 'జతచేయవలసిన పత్రాలు')}:</strong> ${L('ID proof (Aadhaar/voter ID); income affidavit or certificate (for income-based); category certificate (SC/ST, disability, etc.) where relevant.', 'पहचान प्रमाण; आय शपथ-पत्र/प्रमाण-पत्र; श्रेणी प्रमाण-पत्र (SC/ST, दिव्यांग) जहाँ लागू हो।', 'గుర్తింపు రుజువు; ఆదాయ అఫిడవిట్/సర్టిఫికెట్; వర్తించే చోట వర్గ ధృవీకరణ పత్రం (SC/ST, వికలాంగత్వం).')}</p>
+    <div class="alert alert-info" style="font-size:.85rem">🧑‍⚖️ ${L('Once accepted, the authority appoints a panel Advocate for you — free of cost.', 'स्वीकृत होने पर प्राधिकरण आपके लिए नि:शुल्क पैनल वकील नियुक्त करता है।', 'ఆమోదం తర్వాత అథారిటీ మీ కోసం ప్యానెల్ న్యాయవాదిని ఉచితంగా నియమిస్తుంది.')}</div>
+    <button class="btn btn-success" onclick="NS.makeAidApplication()">📝 ${L('Make my application now', 'अभी मेरा आवेदन बनाएं', 'ఇప్పుడే నా దరఖాస్తును తయారుచేయండి')}</button>
+    <p style="font-size:.78rem;color:var(--text-light);margin-top:.4rem">${L('Generates a ready-to-submit application you can print or download.', 'जमा करने हेतु तैयार आवेदन बनाता है जिसे प्रिंट/डाउनलोड करें।', 'ప్రింట్/డౌన్‌లోడ్ చేయగల, సమర్పించడానికి సిద్ధమైన దరఖాస్తును రూపొందిస్తుంది.')}</p>`;
   $('elig_result').innerHTML = eligible
     ? `<div class="green-flag"><strong>✅ ${L('Good news — you are likely eligible for FREE legal aid.', 'खुशखबरी — आप संभवतः मुफ्त कानूनी सहायता के पात्र हैं।', 'శుభవార్త — మీరు ఉచిత న్యాయ సహాయానికి అర్హులే.')}</strong><ul style="margin-top:.4rem">${reasons}</ul></div>${howTo}`
     : `<div class="yellow-flag"><strong>⚠️ ${L('You may not auto-qualify under these categories — but confirm at your DLSA, as limits vary and officers decide case by case.', 'आप इन श्रेणियों में स्वतः पात्र नहीं हो सकते — पर DLSA में पुष्टि करें, सीमाएं बदलती हैं।', 'ఈ వర్గాల కింద మీరు స్వయంచాలకంగా అర్హులు కాకపోవచ్చు — కానీ DLSAలో నిర్ధారించుకోండి, పరిమితులు మారుతుంటాయి.')}</strong></div><div class="alert alert-info" style="font-size:.85rem">${L('Everyone can still use free Lok Adalat settlements and the Tele-Law advice service.', 'सभी मुफ्त लोक अदालत और टेली-लॉ सेवा का उपयोग कर सकते हैं।', 'ప్రతి ఒక్కరూ ఉచిత లోక్ అదాలత్ మరియు టెలి-లా సలహా సేవను ఉపయోగించవచ్చు.')}</div>${howTo}`;
@@ -849,7 +855,7 @@ function toggleDictation() {
 // PAGE: Drafts
 // ============================================
 function renderDrafts() {
-  const types = [['appeal', 'Appeal'], ['bail', 'Bail Application'], ['fir', 'FIR Complaint'], ['rti', 'RTI Application'], ['consumer', 'Consumer Complaint'], ['collector', 'Collector Request'], ['legalnotice', 'Legal Notice'], ['affidavit', 'Affidavit']];
+  const types = [['legalaid', 'Free Legal Aid Application'], ['appeal', 'Appeal'], ['bail', 'Bail Application'], ['fir', 'FIR Complaint'], ['rti', 'RTI Application'], ['consumer', 'Consumer Complaint'], ['collector', 'Collector Request'], ['legalnotice', 'Legal Notice'], ['affidavit', 'Affidavit']];
   return `
     <h1 class="page-title">✍️ ${t('drafts')}</h1>
     <p class="page-subtitle">${L('Generate a ready-to-print legal draft in seconds', 'सेकंडों में प्रिंट-तैयार मसौदा बनाएं', 'సెకన్లలో ప్రింట్‌కు సిద్ధమైన న్యాయ ముసాయిదాను రూపొందించండి')}</p>
@@ -857,15 +863,20 @@ function renderDrafts() {
     <div id="draftForm" class="card mt-1" style="display:none"></div>`;
 }
 function openDraft(type, title) {
+  const isAid = type === 'legalaid';
+  const subjLabel = isAid ? L('Why you are eligible (Section 12 ground)', 'आप क्यों पात्र हैं', 'మీరు ఎందుకు అర్హులు') : L('Subject', 'विषय', 'విషయం');
+  const detLabel = isAid ? L('Your case / legal problem', 'आपका मामला / समस्या', 'మీ కేసు / సమస్య') : L('Details / Facts', 'विवरण', 'వివరాలు / వాస్తవాలు');
+  const relLabel = isAid ? L('Anything else (optional)', 'अन्य (वैकल्पिक)', 'ఇతర (ఐచ్ఛికం)') : L('Relief Sought', 'राहत', 'కోరిన ఉపశమనం');
   const F = $('draftForm');
   F.innerHTML = `<h3 class="card-title">📜 ${esc(title)}</h3>
-    ${currentState ? `<div class="alert alert-info"><strong>📍 ${esc(STATES_UTS[currentState].name)}</strong></div>` : ''}
+    ${isAid ? `<div class="alert alert-success" style="font-size:.85rem">✅ ${L('This creates a ready-to-submit free legal aid application. Submitting it costs nothing.', 'यह जमा करने के लिए तैयार मुफ्त कानूनी सहायता आवेदन बनाता है। जमा करना नि:शुल्क है।', 'ఇది సమర్పించడానికి సిద్ధమైన ఉచిత న్యాయ సహాయ దరఖాస్తును సృష్టిస్తుంది. సమర్పించడం ఉచితం.')}</div>` : ''}
+    ${currentState ? `<div class="alert alert-info"><strong>📍 ${esc(STATES_UTS[currentState].name)}${currentDistrict ? ' › ' + esc(currentDistrict) : ''}</strong></div>` : ''}
     <div class="form-group"><label>${L('Your Name', 'आपका नाम', 'మీ పేరు')}*</label><input class="form-control" id="d_n"></div>
     <div class="form-group"><label>${L('Address', 'पता', 'చిరునామా')}*</label><textarea class="form-control" id="d_a"></textarea></div>
     <div class="form-group"><label>${L('Mobile', 'मोबाइल', 'మొబైల్')}</label><input class="form-control" id="d_p"></div>
-    <div class="form-group"><label>${L('Subject', 'विषय', 'విషయం')}</label><input class="form-control" id="d_s"></div>
-    <div class="form-group"><label>${L('Details / Facts', 'विवरण', 'వివరాలు / వాస్తవాలు')}*</label><textarea class="form-control" id="d_d" rows="3"></textarea></div>
-    <div class="form-group"><label>${L('Relief Sought', 'राहत', 'కోరిన ఉపశమనం')}</label><textarea class="form-control" id="d_r" rows="2"></textarea></div>
+    <div class="form-group"><label>${subjLabel}</label><input class="form-control" id="d_s"></div>
+    <div class="form-group"><label>${detLabel}*</label><textarea class="form-control" id="d_d" rows="3"></textarea></div>
+    <div class="form-group"><label>${relLabel}</label><textarea class="form-control" id="d_r" rows="2"></textarea></div>
     <button class="btn btn-primary" onclick="NS.genDraft('${type}','${esc(title)}')">✨ ${L('Generate', 'बनाएं', 'రూపొందించండి')}</button>
     <div id="draftOut" class="mt-1" style="display:none"></div>`;
   F.style.display = 'block';
@@ -878,7 +889,12 @@ function genDraft(type, title) {
   if (!n || !d) { toast('⚠️ ' + L('Fill name & details', 'नाम व विवरण भरें', 'పేరు & వివరాలు నింపండి'), 'warning'); return; }
   const place = currentState ? STATES_UTS[currentState].name : 'India';
   const date = new Date().toLocaleDateString('en-IN');
-  lastDraft = `To,\nThe Hon'ble Court / Concerned Authority\n${place}\n\nDate: ${date}\n\nSubject: ${s || title}\n\nRespected Sir / Madam,\n\nI, ${n}, resident of ${a || '[address]'}, most respectfully submit as under:\n\n1. ${d}\n\n${r ? '2. ' + r + '\n\n' : ''}PRAYER:\nIt is therefore most humbly prayed that this Hon'ble Court / Authority may kindly be pleased to grant the relief sought above and pass any other order deemed fit in the interest of justice.\n\nYours faithfully,\n\n(${n})\n${p ? 'Mobile: ' + p : ''}\n\n--- Generated by NyayaSahayak. Review with a legal professional before filing. ---`;
+  if (type === 'legalaid') {
+    const dist = currentDistrict || (currentState ? STATES_UTS[currentState].name : '________');
+    lastDraft = `To,\nThe Member Secretary,\nDistrict Legal Services Authority (DLSA),\n${dist}\n\nDate: ${date}\n\nSubject: Application for FREE LEGAL AID under the Legal Services Authorities Act, 1987\n\nRespected Sir / Madam,\n\nI, ${n}, resident of ${a || '[address]'}, most respectfully submit this application seeking free legal aid and legal services:\n\n1. GROUND OF ELIGIBILITY (Section 12):\n   ${s || '[e.g. I am a woman / member of SC-ST / person with disability / my annual family income is below the prescribed limit]'}\n\n2. NATURE OF MY CASE / LEGAL PROBLEM:\n   ${d}\n\n3. ${r || 'I am unable to afford the fees of a private lawyer and require legal representation to protect my rights.'}\n\nPRAYER:\nI humbly request the Authority to grant me free legal aid and to appoint a panel Advocate to advise and represent me in the above matter.\n\nDECLARATION:\nThe information given above is true to the best of my knowledge and belief. I undertake to furnish the supporting documents (identity proof and income / category certificate, as applicable) as required by the Authority.\n\nYours faithfully,\n\n(${n})\n${p ? 'Mobile: ' + p + '\n' : ''}Date: ${date}\n\nEnclosures: (1) Identity proof  (2) Income / category certificate (as applicable)\n\n--- Generated by NyayaSahayak. It is FREE to submit — hand it in at your DLSA front office (district court complex), or apply online at nalsa.gov.in, or call 15100. ---`;
+  } else {
+    lastDraft = `To,\nThe Hon'ble Court / Concerned Authority\n${place}\n\nDate: ${date}\n\nSubject: ${s || title}\n\nRespected Sir / Madam,\n\nI, ${n}, resident of ${a || '[address]'}, most respectfully submit as under:\n\n1. ${d}\n\n${r ? '2. ' + r + '\n\n' : ''}PRAYER:\nIt is therefore most humbly prayed that this Hon'ble Court / Authority may kindly be pleased to grant the relief sought above and pass any other order deemed fit in the interest of justice.\n\nYours faithfully,\n\n(${n})\n${p ? 'Mobile: ' + p : ''}\n\n--- Generated by NyayaSahayak. Review with a legal professional before filing. ---`;
+  }
   $('draftOut').innerHTML = `<div class="result-box"><h4>📋 ${L('Your Draft', 'आपका मसौदा', 'మీ ముసాయిదా')}</h4><pre class="draft">${esc(lastDraft)}</pre>
     <div class="btn-group mt-1">
       <button class="btn btn-success" onclick="NS.copyDraft()">📋 ${L('Copy', 'कॉपी', 'కాపీ')}</button>
@@ -988,6 +1004,7 @@ const handlers = {
   findLocation,
   showRights,
   checkEligibility,
+  makeAidApplication: () => { showPage('drafts'); openDraft('legalaid', 'Free Legal Aid Application'); },
   filterGlossary,
   updateTriggerLabel,
   calcDeadlines,
