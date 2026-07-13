@@ -974,7 +974,7 @@ function renderHelpline() {
   const st = currentState ? STATES_UTS[currentState] : null;
   return `<h1 class="page-title">📞 ${t('helpline')}</h1>
     <div class="card"><h3 class="card-title">🆘 ${L('Emergency', 'आपातकालीन', 'అత్యవసరం')}</h3>
-      <div class="grid">${[['Police / పోలీస్', '100'], ['Women / మహిళలు', '1091 / 181'], ['Child / పిల్లలు', '1098'], ['Cyber / సైబర్', '1930'], ['NALSA', '15100'], ['Senior / వృద్ధులు', '14567'], ['Ambulance', '108'], ['Emergency', '112']].map(([l, n]) => `<div><strong>${esc(l)}</strong><p class="emergency-num">${esc(n)}</p></div>`).join('')}</div>
+      <div class="grid">${[[L('Police', 'पुलिस', 'పోలీస్'), '100'], [L('Women', 'महिला', 'మహిళలు'), '1091 / 181'], [L('Child', 'बाल', 'పిల్లలు'), '1098'], [L('Cyber Crime', 'साइबर', 'సైబర్'), '1930'], ['NALSA', '15100'], [L('Senior Citizen', 'वरिष्ठ', 'వృద్ధులు'), '14567'], [L('Ambulance', 'एम्बुलेंस', 'అంబులెన్స్'), '108'], [L('Emergency', 'आपातकाल', 'అత్యవసరం'), '112']].map(([l, n]) => `<div><strong>${esc(l)}</strong><p class="emergency-num">${esc(n)}</p></div>`).join('')}</div>
     </div>
     ${st ? `<div class="card"><h3 class="card-title">📍 ${esc(st.name)}</h3>
       <p><strong>${L('High Court', 'उच्च न्यायालय', 'హైకోర్టు')}:</strong> ${esc(st.hc)}</p>
