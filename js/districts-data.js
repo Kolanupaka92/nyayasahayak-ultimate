@@ -37,7 +37,10 @@ export const STATES_UTS = {
   CH: { name: 'Chandigarh', hc: 'Punjab & Haryana HC', landLaw: 'Punjab LRA', districts: ['Chandigarh'], langs: ['en', 'hi', 'pa'] },
   DN: { name: 'Dadra & Nagar Haveli and Daman & Diu', hc: 'Bombay HC', landLaw: 'Bombay LRC', districts: ['Dadra & Nagar Haveli', 'Daman', 'Diu'], langs: ['gu', 'hi', 'en'] },
   DL: { name: 'Delhi', hc: 'Delhi HC', landLaw: 'Delhi LRA', portal: 'https://dlrc.delhigovt.nic.in/', districts: ['Central Delhi', 'East Delhi', 'New Delhi', 'North Delhi', 'North East Delhi', 'North West Delhi', 'Shahdara', 'South Delhi', 'South East Delhi', 'South West Delhi', 'West Delhi'], langs: ['hi', 'en', 'ur', 'pa'] },
-  PY: { name: 'Puducherry', hc: 'Madras HC', landLaw: 'Pondicherry LRA', districts: ['Karaikal', 'Mahe', 'Puducherry', 'Yanam'], langs: ['ta', 'en', 'te'] }
+  PY: { name: 'Puducherry', hc: 'Madras HC', landLaw: 'Pondicherry LRA', districts: ['Karaikal', 'Mahe', 'Puducherry', 'Yanam'], langs: ['ta', 'en', 'te'] },
+  LA: { name: 'Ladakh', hc: 'J&K and Ladakh HC', landLaw: 'Ladakh Land Revenue Act', districts: ['Kargil', 'Leh'], langs: ['ur', 'en', 'hi'] },
+  ANI: { name: 'Andaman & Nicobar Islands', hc: 'Calcutta HC (Circuit Bench)', landLaw: 'A&N Islands Land Revenue Reg', districts: ['Nicobar', 'North & Middle Andaman', 'South Andaman'], langs: ['hi', 'en', 'ta', 'te', 'bn'] },
+  LD: { name: 'Lakshadweep', hc: 'Kerala HC', landLaw: 'Lakshadweep Land Revenue Reg', districts: ['Lakshadweep'], langs: ['ml', 'en'] }
 };
 
 export const RED_FLAGS_DB = [
