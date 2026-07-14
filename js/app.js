@@ -11,7 +11,7 @@ import { nearbyServices, mapLink, getCoords } from './geolocation.js';
 import { lookupTargets, statusSummary, isValidCNR } from './ecourts-api.js';
 import { ELIG_CATEGORIES, INCOME_CEILINGS, LIMITATION, GLOSSARY } from './legal-data.js';
 import { speak, speakHelplines, isSupported as ttsSupported, hasVoiceFor, startDictation, stopDictation, sttSupported, isDictating } from './ivr.js';
-import { encryptData, decryptData, unlockWithPin, hashPin, isUnlocked } from './encryption.js';
+import { encryptData, decryptData, unlockWithPin, hashPin, isUnlocked, isEncrypted } from './encryption.js';
 import { putDoc, getDoc, deleteDocsForCase, extractText, isStorageSupported } from './storage.js';
 
 // ---------- State ----------
@@ -23,12 +23,16 @@ let currentCase = null;
 let cases = [];
 let currentDocs = [];
 let pinHash = null;
+let locked = false; // true when encrypted data exists but has not been unlocked
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ---------- Persistence (encrypted when unlocked) ----------
 async function saveCases() {
+  // Never overwrite encrypted data while it is still locked — that would
+  // replace the ciphertext with plaintext and destroy the user's cases.
+  if (locked) { toast('🔒 ' + L('Unlock with your PIN first', 'पहले अपने PIN से अनलॉक करें', 'ముందు మీ PINతో అన్‌లాక్ చేయండి'), 'warning'); return; }
   try {
     const payload = await encryptData(cases);
     localStorage.setItem('nyayaCases', payload);
@@ -38,12 +42,15 @@ async function saveCases() {
 }
 async function loadCases() {
   const raw = localStorage.getItem('nyayaCases');
-  if (!raw) { cases = []; return; }
+  if (!raw) { cases = []; locked = false; return; }
+  // Encrypted but no session key yet → stay locked, do NOT touch storage.
+  if (isEncrypted(raw) && !isUnlocked()) { locked = true; cases = []; return; }
   try {
     cases = (await decryptData(raw)) || [];
+    locked = false;
   } catch (e) {
-    if (e.message === 'LOCKED') { cases = []; return; }
-    cases = [];
+    if (e.message === 'LOCKED') { locked = true; cases = []; return; }
+    cases = []; locked = false;
   }
 }
 
@@ -77,7 +84,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (currentState) populateDistricts(currentState);
   if (currentDistrict) $('districtSelect').value = currentDistrict;
   renderSidebar();
-  showPage('dashboard');
+  if (locked) showUnlockGate(); else showPage('dashboard');
   setupOfflineListener();
   registerSW();
   bindGlobal();
@@ -103,7 +110,7 @@ function loadSettings() {
   $('languageSelect').value = currentLang;
   document.documentElement.lang = currentLang;
   if (localStorage.getItem('nyayaTheme') === 'dark') document.body.classList.add('dark');
-  if (pinHash) $('lockBtn').style.display = 'inline-block';
+  $('lockBtn').style.display = 'inline-block'; // always available (set or manage PIN)
 }
 
 function registerSW() {
@@ -171,15 +178,42 @@ function toggleTheme() {
 
 // ---------- Lock / PIN ----------
 async function lockApp() {
-  const pin = prompt(L('Enter 4-digit PIN to protect your case data:', 'डेटा सुरक्षित करने के लिए 4-अंकीय PIN:', 'మీ కేసు డేటాను రక్షించడానికి 4-అంకెల PIN నమోదు చేయండి:'));
+  // Already protected & unlocked → just reassure (data stays encrypted at rest).
+  if (pinHash && isUnlocked()) {
+    toast('🔒 ' + L('Your data is already encrypted with a PIN', 'आपका डेटा पहले से PIN से एन्क्रिप्टेड है', 'మీ డేటా ఇప్పటికే PINతో ఎన్‌క్రిప్ట్ చేయబడింది'));
+    return;
+  }
+  const setup = !pinHash;
+  const pin = prompt(setup
+    ? L('Set a 4-digit PIN to encrypt your case data on this device:', 'इस डिवाइस पर डेटा एन्क्रिप्ट करने हेतु 4-अंकीय PIN सेट करें:', 'ఈ పరికరంలో మీ డేటాను ఎన్‌క్రిప్ట్ చేయడానికి 4-అంకెల PIN సెట్ చేయండి:')
+    : L('Enter your PIN:', 'अपना PIN दर्ज करें:', 'మీ PINను నమోదు చేయండి:'));
   if (!pin || !/^\d{4}$/.test(pin)) { toast('⚠️ ' + L('PIN must be 4 digits', 'PIN 4 अंक का हो', 'PIN 4 అంకెలు ఉండాలి'), 'warning'); return; }
   const h = await hashPin(pin);
   if (pinHash && pinHash !== h) { toast('❌ ' + L('Wrong PIN', 'गलत PIN', 'తప్పు PIN'), 'error'); return; }
   pinHash = h; localStorage.setItem('nyayaPinHash', h);
   await unlockWithPin(pin);
-  await saveCases(); // re-save encrypted
+  locked = false;
+  await saveCases(); // (re)write encrypted with the derived key
   toast('🔒 ' + L('Data secured & encrypted', 'डेटा एन्क्रिप्ट किया गया', 'డేటా ఎన్‌క్రిప్ట్ చేయబడింది'));
 }
+
+// Full-screen gate shown on load when encrypted data needs the PIN.
+function showUnlockGate() {
+  let ov = $('unlockGate');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'unlockGate'; ov.className = 'modal show'; document.body.appendChild(ov); }
+  ov.innerHTML = `<div class="modal-content" style="max-width:360px;text-align:center">
+    <div style="font-size:2.6rem">🔒</div>
+    <h3 class="card-title" style="justify-content:center">${L('Enter your PIN', 'अपना PIN दर्ज करें', 'మీ PINను నమోదు చేయండి')}</h3>
+    <p style="color:var(--text-light);font-size:.85rem">${L('Your case data is encrypted on this device.', 'आपका डेटा इस डिवाइस पर एन्क्रिप्टेड है।', 'మీ డేటా ఈ పరికరంలో ఎన్‌క్రిప్ట్ చేయబడింది.')}</p>
+    <input id="unlockPin" type="password" inputmode="numeric" maxlength="4" class="form-control" style="text-align:center;font-size:1.6rem;letter-spacing:.6rem;margin:.9rem 0" placeholder="••••" onkeydown="if(event.key==='Enter')NS.tryUnlock()">
+    <button class="btn btn-primary" style="width:100%" onclick="NS.tryUnlock()">🔓 ${L('Unlock', 'अनलॉक करें', 'అన్‌లాక్ చేయండి')}</button>
+    <div id="unlockErr" style="color:var(--danger);font-size:.85rem;margin-top:.6rem"></div>
+    <a href="#" style="display:inline-block;margin-top:1rem;font-size:.78rem;color:var(--text-light)" onclick="NS.resetLockedData();return false">${L('Forgot PIN? Reset app (deletes encrypted data)', 'PIN भूल गए? ऐप रीसेट करें (एन्क्रिप्टेड डेटा हटेगा)', 'PIN మర్చిపోయారా? యాప్ రీసెట్ చేయండి (ఎన్‌క్రిప్ట్ డేటా తొలగుతుంది)')}</a>
+  </div>`;
+  ov.classList.add('show');
+  setTimeout(() => $('unlockPin')?.focus(), 60);
+}
+function hideUnlockGate() { $('unlockGate')?.remove(); }
 
 // ---------- Navigation ----------
 function renderSidebar() {
@@ -1004,6 +1038,30 @@ const handlers = {
   findLocation,
   showRights,
   checkEligibility,
+  tryUnlock: async () => {
+    const err = $('unlockErr');
+    const pin = $('unlockPin').value;
+    if (!/^\d{4}$/.test(pin)) { err.textContent = L('PIN must be 4 digits', 'PIN 4 अंक का हो', 'PIN 4 అంకెలు ఉండాలి'); return; }
+    const h = await hashPin(pin);
+    if (h !== pinHash) { err.textContent = L('Wrong PIN — try again', 'गलत PIN — फिर कोशिश करें', 'తప్పు PIN — మళ్ళీ ప్రయత్నించండి'); $('unlockPin').value = ''; return; }
+    await unlockWithPin(pin);
+    locked = false;
+    await loadCases();
+    hideUnlockGate();
+    renderSidebar();
+    showPage('dashboard');
+    toast('🔓 ' + L('Unlocked', 'अनलॉक हो गया', 'అన్‌లాక్ అయింది'));
+  },
+  resetLockedData: () => {
+    if (!confirm(L('This permanently deletes the encrypted case data on this device. Continue?', 'यह इस डिवाइस पर एन्क्रिप्टेड डेटा स्थायी रूप से हटा देगा। जारी रखें?', 'ఇది ఈ పరికరంలోని ఎన్‌క్రిప్ట్ డేటాను శాశ్వతంగా తొలగిస్తుంది. కొనసాగించాలా?'))) return;
+    localStorage.removeItem('nyayaCases');
+    localStorage.removeItem('nyayaPinHash');
+    pinHash = null; locked = false; cases = [];
+    hideUnlockGate();
+    renderSidebar();
+    showPage('dashboard');
+    toast('🔄 ' + L('App reset', 'ऐप रीसेट', 'యాప్ రీసెట్ చేయబడింది'));
+  },
   makeAidApplication: () => { showPage('drafts'); openDraft('legalaid', 'Free Legal Aid Application'); },
   filterGlossary,
   updateTriggerLabel,

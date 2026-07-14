@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyzeNotice, detectLang, classifyCase, extractDates, extractAmounts, scoreUrgency } from '../js/ai-engine.js';
 import { isValidCNR, lookupTargets, statusSummary } from '../js/ecourts-api.js';
-import { encryptData, decryptData, unlockWithPin, lock } from '../js/encryption.js';
+import { encryptData, decryptData, unlockWithPin, lock, isEncrypted, isUnlocked } from '../js/encryption.js';
 import { nearbyServices } from '../js/geolocation.js';
 
 test('classifyCase covers the main categories', () => {
@@ -77,7 +77,17 @@ test('encryption: plain when locked, AES round-trip when unlocked', async () => 
   await unlockWithPin('1234');
   const enc = await encryptData([{ a: 1, b: 'x' }]);
   assert.ok(enc.startsWith('enc::'), 'ciphertext should be prefixed');
+  assert.equal(isEncrypted(enc), true);
+  assert.equal(isEncrypted('[]'), false);
   const back = await decryptData(enc);
   assert.deepEqual(back, [{ a: 1, b: 'x' }]);
   lock();
+});
+
+test('locked decrypt throws LOCKED (never returns empty over ciphertext)', async () => {
+  await unlockWithPin('4321');
+  const enc = await encryptData([{ secret: true }]);
+  lock(); // simulate a fresh load without the session key
+  assert.equal(isUnlocked(), false);
+  await assert.rejects(() => decryptData(enc), /LOCKED/);
 });

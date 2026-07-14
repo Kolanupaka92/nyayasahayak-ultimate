@@ -40,6 +40,11 @@ export function isUnlocked() {
   return sessionKey !== null;
 }
 
+// True if a stored payload is an encrypted blob (vs plain JSON).
+export function isEncrypted(str) {
+  return typeof str === 'string' && str.startsWith(ENC_PREFIX);
+}
+
 function toB64(buf) {
   return btoa(String.fromCharCode(...new Uint8Array(buf)));
 }
