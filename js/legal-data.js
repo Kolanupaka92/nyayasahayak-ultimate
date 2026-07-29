@@ -65,6 +65,38 @@ export const LIMITATION = {
   }
 };
 
+// ---- Low-cost / free legal channels (for the budget router) ----
+export const LOWCOST_CHANNELS = [
+  {
+    id: 'lokadalat', icon: '⚖️',
+    name: { en: 'Lok Adalat', hi: 'लोक अदालत', te: 'లోక్ అదాలత్' },
+    cost: { en: 'Free', hi: 'नि:शुल्क', te: 'ఉచితం' },
+    desc: { en: 'Settles disputes by mutual compromise with no court fee. The award is final and binding. Best for cheque, money, matrimonial-by-consent and other settleable matters.', hi: 'आपसी समझौते से विवाद सुलझाता है, कोई कोर्ट फीस नहीं। निर्णय अंतिम व बाध्यकारी। चेक, धन, सहमति-तलाक जैसे मामलों के लिए सर्वोत्तम।', te: 'పరస్పర రాజీతో వివాదాలను పరిష్కరిస్తుంది, కోర్టు ఫీజు లేదు. తీర్పు అంతిమం, కట్టుబడి ఉంటుంది. చెక్, డబ్బు, పరస్పర అంగీకార విడాకుల వంటి వాటికి ఉత్తమం.' },
+    how: { en: 'Ask your DLSA for the next National/State Lok Adalat date.', hi: 'अगली लोक अदालत तिथि हेतु अपने DLSA से पूछें।', te: 'తదుపరి లోక్ అదాలత్ తేదీ కోసం మీ DLSAను అడగండి.' }
+  },
+  {
+    id: 'telelaw', icon: '📞',
+    name: { en: 'Tele-Law', hi: 'टेली-लॉ', te: 'టెలి-లా' },
+    cost: { en: 'Free', hi: 'नि:शुल्क', te: 'ఉచితం' },
+    desc: { en: 'Free legal advice from a panel lawyer by video/phone through a Common Service Centre (CSC) or the Tele-Law Citizen app.', hi: 'कॉमन सर्विस सेंटर (CSC) या टेली-लॉ ऐप के माध्यम से पैनल वकील से मुफ्त वीडियो/फोन सलाह।', te: 'కామన్ సర్వీస్ సెంటర్ (CSC) లేదా టెలి-లా యాప్ ద్వారా ప్యానెల్ న్యాయవాది నుండి ఉచిత వీడియో/ఫోన్ సలహా.' },
+    how: { en: 'Visit your nearest CSC or use the "Tele-Law Citizen" app.', hi: 'निकटतम CSC जाएं या "Tele-Law Citizen" ऐप उपयोग करें।', te: 'మీ సమీప CSCను సందర్శించండి లేదా "Tele-Law Citizen" యాప్ వాడండి.' }
+  },
+  {
+    id: 'dlsaclinic', icon: '🏛️',
+    name: { en: 'DLSA Legal Aid Clinic', hi: 'DLSA विधिक सहायता क्लिनिक', te: 'DLSA న్యాయ సహాయ క్లినిక్' },
+    cost: { en: 'Free', hi: 'नि:शुल्क', te: 'ఉచితం' },
+    desc: { en: 'Free advice and help from Legal Services Authority clinics at the court complex, taluka and many villages.', hi: 'न्यायालय परिसर, तालुका व कई गांवों में विधिक सेवा प्राधिकरण क्लिनिक से मुफ्त सलाह व मदद।', te: 'కోర్టు ప్రాంగణం, తాలూకా, అనేక గ్రామాలలో లీగల్ సర్వీసెస్ అథారిటీ క్లినిక్‌ల నుండి ఉచిత సలహా, సహాయం.' },
+    how: { en: 'Walk in to the legal-aid clinic at your court complex.', hi: 'अपने न्यायालय परिसर की विधिक सहायता क्लिनिक जाएं।', te: 'మీ కోర్టు ప్రాంగణంలోని న్యాయ సహాయ క్లినిక్‌కు వెళ్లండి.' }
+  },
+  {
+    id: 'lawschool', icon: '🎓',
+    name: { en: 'Law College Legal Aid Cell', hi: 'लॉ कॉलेज विधिक सहायता प्रकोष्ठ', te: 'లా కళాశాల న్యాయ సహాయ విభాగం' },
+    cost: { en: 'Free / very low', hi: 'नि:शुल्क / बहुत कम', te: 'ఉచితం / చాలా తక్కువ' },
+    desc: { en: 'Supervised law students give free help with drafting, paperwork and basic advice.', hi: 'पर्यवेक्षित विधि छात्र मसौदा, कागजी कार्य व बुनियादी सलाह में मुफ्त मदद करते हैं।', te: 'పర్యవేక్షణలో ఉన్న న్యాయ విద్యార్థులు ముసాయిదా, పేపర్‌వర్క్, ప్రాథమిక సలహాలో ఉచిత సహాయం చేస్తారు.' },
+    how: { en: 'Contact the legal-aid cell of a nearby law college.', hi: 'निकटवर्ती लॉ कॉलेज के विधिक सहायता प्रकोष्ठ से संपर्क करें।', te: 'సమీప లా కళాశాల న్యాయ సహాయ విభాగాన్ని సంప్రదించండి.' }
+  }
+];
+
 // ---- 3. Plain-language glossary (jargon buster) ----
 export const GLOSSARY = [
   { term: 'FIR (First Information Report)', hi: 'FIR (प्रथम सूचना रिपोर्ट)', te: 'FIR (ప్రథమ సమాచార నివేదిక)', def: { en: 'The first written record the police make of a serious (cognizable) crime. Filing it starts a criminal investigation.', hi: 'गंभीर (संज्ञेय) अपराध का पुलिस द्वारा पहला लिखित रिकॉर्ड। इससे आपराधिक जाँच शुरू होती है।', te: 'తీవ్రమైన (గుర్తించదగిన) నేరం గురించి పోలీసులు చేసే మొదటి లిఖిత రికార్డు. దీనితో నేర దర్యాప్తు మొదలవుతుంది.' } },

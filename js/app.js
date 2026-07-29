@@ -9,7 +9,8 @@ import { STATES_UTS, RED_FLAGS_DB, I18N } from './districts-data.js';
 import { analyzeNotice } from './ai-engine.js';
 import { nearbyServices, mapLink, getCoords } from './geolocation.js';
 import { lookupTargets, statusSummary, isValidCNR } from './ecourts-api.js';
-import { ELIG_CATEGORIES, INCOME_CEILINGS, LIMITATION, GLOSSARY } from './legal-data.js';
+import { ELIG_CATEGORIES, INCOME_CEILINGS, LIMITATION, GLOSSARY, LOWCOST_CHANNELS } from './legal-data.js';
+import { routeByBudget, findLawyers, verifiedCount } from './lawyer-directory.js';
 import { speak, speakHelplines, isSupported as ttsSupported, hasVoiceFor, startDictation, stopDictation, sttSupported, isDictating } from './ivr.js';
 import { encryptData, decryptData, unlockWithPin, hashPin, isUnlocked, isEncrypted } from './encryption.js';
 import { putDoc, getDoc, deleteDocsForCase, extractText, isStorageSupported } from './storage.js';
@@ -65,6 +66,7 @@ const PAGES = [
   { id: 'mycase', icon: '📋', key: 'mycase' },
   { id: 'cases', icon: '🔎', key: 'cases' },
   { id: 'eligibility', icon: '🎟️', key: 'eligibility' },
+  { id: 'findlawyer', icon: '🤝', key: 'findlawyer' },
   { id: 'guide', icon: '🛣️', key: 'guide' },
   { id: 'redflags', icon: '🚨', key: 'redflags' },
   { id: 'attorney', icon: '👨‍⚖️', key: 'attorney' },
@@ -231,7 +233,7 @@ function showPage(id) {
 }
 function renderCurrentPage() {
   stopDictation(); // end any voice input before the DOM is swapped
-  const fns = { dashboard: renderDashboard, mycase: renderMyCase, cases: renderCaseStatus, eligibility: renderEligibility, guide: renderGuide, redflags: renderRedFlags, attorney: renderAttorney, analyzer: renderAnalyzer, drafts: renderDrafts, glossary: renderGlossary, nearby: renderNearby, rights: renderRights, helpline: renderHelpline };
+  const fns = { dashboard: renderDashboard, mycase: renderMyCase, cases: renderCaseStatus, eligibility: renderEligibility, findlawyer: renderFindLawyer, guide: renderGuide, redflags: renderRedFlags, attorney: renderAttorney, analyzer: renderAnalyzer, drafts: renderDrafts, glossary: renderGlossary, nearby: renderNearby, rights: renderRights, helpline: renderHelpline };
   $('mainContent').innerHTML = `<div class="page">${(fns[currentPage] || renderDashboard)()}</div>`;
   if (currentPage === 'mycase') afterMyCaseRender();
   if (currentPage === 'analyzer') afterAnalyzerRender();
@@ -309,6 +311,7 @@ function featureDesc(id) {
     mycase: L('Upload & track your case', 'मामला अपलोड व ट्रैक करें', 'మీ కేసును అప్‌లోడ్ & ట్రాక్ చేయండి'),
     cases: L('Case status, deadlines & reminders', 'स्थिति, समय-सीमा व रिमाइंडर', 'స్థితి, గడువులు & రిమైండర్‌లు'),
     eligibility: L('Do you qualify for FREE legal aid?', 'क्या आप मुफ्त सहायता के पात्र हैं?', 'మీరు ఉచిత న్యాయ సహాయానికి అర్హులా?'),
+    findlawyer: L('Match to help by your budget', 'अपने बजट अनुसार मदद पाएं', 'మీ బడ్జెట్‌కు తగిన సహాయం'),
     glossary: L('Legal words in simple language', 'सरल भाषा में कानूनी शब्द', 'సరళ భాషలో న్యాయ పదాలు'),
     guide: L('3 paths: DIY / Hybrid / Attorney', '3 रास्ते', '3 మార్గాలు: మీరే / మిశ్రమ / న్యాయవాది'),
     redflags: L('Detect attorney fraud early', 'वकील धोखाधड़ी पकड़ें', 'న్యాయవాది మోసాన్ని ముందుగా గుర్తించండి'),
@@ -607,6 +610,85 @@ function checkEligibility() {
     ? `<div class="green-flag"><strong>✅ ${L('Good news — you are likely eligible for FREE legal aid.', 'खुशखबरी — आप संभवतः मुफ्त कानूनी सहायता के पात्र हैं।', 'శుభవార్త — మీరు ఉచిత న్యాయ సహాయానికి అర్హులే.')}</strong><ul style="margin-top:.4rem">${reasons}</ul></div>${howTo}`
     : `<div class="yellow-flag"><strong>⚠️ ${L('You may not auto-qualify under these categories — but confirm at your DLSA, as limits vary and officers decide case by case.', 'आप इन श्रेणियों में स्वतः पात्र नहीं हो सकते — पर DLSA में पुष्टि करें, सीमाएं बदलती हैं।', 'ఈ వర్గాల కింద మీరు స్వయంచాలకంగా అర్హులు కాకపోవచ్చు — కానీ DLSAలో నిర్ధారించుకోండి, పరిమితులు మారుతుంటాయి.')}</strong></div><div class="alert alert-info" style="font-size:.85rem">${L('Everyone can still use free Lok Adalat settlements and the Tele-Law advice service.', 'सभी मुफ्त लोक अदालत और टेली-लॉ सेवा का उपयोग कर सकते हैं।', 'ప్రతి ఒక్కరూ ఉచిత లోక్ అదాలత్ మరియు టెలి-లా సలహా సేవను ఉపయోగించవచ్చు.')}</div>${howTo}`;
   $('elig_result').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ============================================
+// PAGE: Find a Lawyer (budget router — Phase 1a)
+// Routes: free public lawyer → free/low-cost → verified private lawyer.
+// The consumer-protection features stay independent of any commercials.
+// ============================================
+function renderFindLawyer() {
+  if (!currentCase && cases.length) currentCase = cases[cases.length - 1];
+  return `
+    <h1 class="page-title">🤝 ${t('findlawyer')}</h1>
+    <p class="page-subtitle">${L('Get matched to the right help for your case — from a free government lawyer to a verified private one — based on your budget.', 'अपने बजट के आधार पर सही मदद पाएं — मुफ्त सरकारी वकील से सत्यापित निजी वकील तक।', 'మీ బడ్జెట్ ఆధారంగా సరైన సహాయం పొందండి — ఉచిత ప్రభుత్వ న్యాయవాది నుండి ధృవీకరించిన ప్రైవేట్ న్యాయవాది వరకు.')}</p>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group"><label>${L('Case type', 'मामले का प्रकार', 'కేసు రకం')}</label><select class="form-control" id="fl_type">${caseTypes().map(([v, en, hi, te]) => `<option value="${v}"${currentCase?.type === v ? ' selected' : ''}>${L(en, hi, te)}</option>`).join('')}</select></div>
+        <div class="form-group"><label>${L('Your budget (₹)', 'आपका बजट (₹)', 'మీ బడ్జెట్ (₹)')}</label><input type="number" class="form-control" id="fl_budget" placeholder="0" value="${currentCase?.budget || ''}"></div>
+      </div>
+      <p style="font-size:.8rem;color:var(--text-light)">📍 ${currentState ? esc(STATES_UTS[currentState].name) + (currentDistrict ? ' › ' + esc(currentDistrict) : '') : L('Select your state above for local options', 'स्थानीय विकल्पों हेतु ऊपर राज्य चुनें', 'స్థానిక ఎంపికల కోసం పైన మీ రాష్ట్రాన్ని ఎంచుకోండి')}</p>
+      <button class="btn btn-primary" onclick="NS.routeLawyer()">🔍 ${L('Find my options', 'मेरे विकल्प खोजें', 'నా ఎంపికలను కనుగొనండి')}</button>
+      <div id="fl_result" class="mt-2"></div>
+    </div>`;
+}
+function trackLabel(t) {
+  return {
+    freeaid: L('free public lawyer', 'मुफ्त सरकारी वकील', 'ఉచిత ప్రభుత్వ న్యాయవాది'),
+    lowcost: L('free & low-cost help', 'मुफ्त व कम लागत मदद', 'ఉచిత & తక్కువ ఖర్చు సహాయం'),
+    private_simple: L('a private lawyer', 'निजी वकील', 'ప్రైవేట్ న్యాయవాది'),
+    private_full: L('a private lawyer / senior counsel', 'निजी वकील / वरिष्ठ अधिवक्ता', 'ప్రైవేట్ న్యాయవాది / సీనియర్ కౌన్సెల్')
+  }[t];
+}
+function freeAidCard() {
+  return `<div class="green-flag"><strong>🎟️ ${L('You may qualify for a FREE government lawyer', 'आप मुफ्त सरकारी वकील के पात्र हो सकते हैं', 'మీరు ఉచిత ప్రభుత్వ న్యాయవాదికి అర్హులు కావచ్చు')}</strong><br><button class="btn btn-success btn-sm mt-1" onclick="NS.showPage('eligibility')">${L('Check free-aid eligibility', 'मुफ्त सहायता पात्रता जाँचें', 'ఉచిత సహాయ అర్హతను తనిఖీ చేయండి')} →</button></div>`;
+}
+function lowcostCard() {
+  return `<div class="card"><h3 class="card-title">💰 ${L('Free & low-cost options', 'मुफ्त व कम लागत विकल्प', 'ఉచిత & తక్కువ ఖర్చు ఎంపికలు')}</h3>
+    ${LOWCOST_CHANNELS.map(c => `<div class="nearby-card"><div><h4>${c.icon} ${esc(L(c.name.en, c.name.hi, c.name.te))} <span class="badge badge-success">${esc(L(c.cost.en, c.cost.hi, c.cost.te))}</span></h4><p style="font-size:.85rem;color:var(--text-light)">${esc(L(c.desc.en, c.desc.hi, c.desc.te))}</p><p style="font-size:.82rem">👉 ${esc(L(c.how.en, c.how.hi, c.how.te))}</p></div></div>`).join('')}
+  </div>`;
+}
+function diyCard() {
+  return `<div class="alert alert-info">🛠️ ${L('Simple matters you can often handle yourself with our step guide and free drafts.', 'सरल मामले आप हमारे मार्गदर्शन व मुफ्त मसौदों से स्वयं संभाल सकते हैं।', 'సరళమైన విషయాలను మా దశల మార్గదర్శిని & ఉచిత ముసాయిదాలతో మీరే నిర్వహించవచ్చు.')} <button class="btn btn-outline btn-sm" onclick="NS.showPage('guide')">${L('Step guide', 'मार्गदर्शन', 'దశల మార్గదర్శిని')}</button></div>`;
+}
+function renderLawyerListing(caseType) {
+  const list = findLawyers({ state: currentState, district: currentDistrict, caseType, language: currentLang });
+  if (list.length) {
+    return list.map(l => `<div class="nearby-card"><div><h4>${esc(l.name)} <span class="badge badge-success">✔ ${L('Verified', 'सत्यापित', 'ధృవీకరించబడింది')}</span></h4><p style="font-size:.82rem;color:var(--text-light)">${esc((l.practice_areas || []).join(', '))} · ${esc((l.languages || []).join(', '))} · ₹${l.fee_band?.min ?? '—'}–${l.fee_band?.max ?? '—'}</p></div><button class="btn btn-primary btn-sm" onclick="NS.contactLawyer('${l.id}')">${L('Request', 'अनुरोध', 'అభ్యర్థన')}</button></div>`).join('');
+  }
+  const where = currentDistrict || (currentState ? STATES_UTS[currentState].name : L('your area', 'आपके क्षेत्र', 'మీ ప్రాంతం'));
+  return `<div class="yellow-flag"><strong>🔍 ${L('Our verified lawyer directory is launching in', 'हमारी सत्यापित वकील निर्देशिका शुरू हो रही है', 'మా ధృవీకరించిన న్యాయవాది డైరెక్టరీ ప్రారంభమవుతోంది')} ${esc(where)}.</strong>
+    <p style="margin-top:.3rem;font-size:.88rem">${L('We list only lawyers whose Bar Council enrolment we have verified. Until then, if you find a lawyer yourself, use the safety checklist below.', 'हम केवल उन वकीलों को सूचीबद्ध करते हैं जिनका बार काउंसिल पंजीकरण हमने सत्यापित किया है। तब तक, यदि आप स्वयं वकील खोजें तो नीचे दी सुरक्षा चेकलिस्ट का उपयोग करें।', 'బార్ కౌన్సిల్ నమోదును మేము ధృవీకరించిన న్యాయవాదులను మాత్రమే జాబితా చేస్తాము. అప్పటి వరకు, మీరే న్యాయవాదిని కనుగొంటే క్రింది భద్రతా చెక్‌లిస్ట్‌ను ఉపయోగించండి.')}</p></div>`;
+}
+function privateCard(track, caseType) {
+  const heading = track === 'private_full'
+    ? L('Private lawyer / senior counsel', 'निजी वकील / वरिष्ठ अधिवक्ता', 'ప్రైవేట్ న్యాయవాది / సీనియర్ కౌన్సెల్')
+    : L('Verified private lawyer', 'सत्यापित निजी वकील', 'ధృవీకరించిన ప్రైవేట్ న్యాయవాది');
+  return `<div class="card"><h3 class="card-title">🤝 ${heading}</h3>${renderLawyerListing(caseType)}</div>`;
+}
+function lawyerTrustBlock() {
+  return `<div class="card"><h3 class="card-title">🛡️ ${L('Before you hire ANY lawyer', 'किसी भी वकील को नियुक्त करने से पहले', 'ఏ న్యాయవాదిని నియమించే ముందు')}</h3>
+    <ol>
+      <li>${L('Verify their Bar Council enrolment number', 'उनका बार काउंसिल पंजीकरण नंबर सत्यापित करें', 'వారి బార్ కౌన్సిల్ నమోదు నంబర్‌ను ధృవీకరించండి')} — <a href="https://www.barcouncilofindia.org" target="_blank" rel="noopener">barcouncilofindia.org</a></li>
+      <li>${L('Insist on a written fee agreement', 'लिखित फीस समझौते पर जोर दें', 'లిఖిత ఫీజు ఒప్పందంపై పట్టుబట్టండి')}</li>
+      <li>${L('Get a receipt for every payment', 'हर भुगतान की रसीद लें', 'ప్రతి చెల్లింపునకు రసీదు తీసుకోండి')}</li>
+    </ol>
+    <button class="btn btn-danger" onclick="NS.showPage('redflags')">🚨 ${L('See attorney red flags', 'वकील रेड फ्लैग देखें', 'న్యాయవాది రెడ్ ఫ్లాగ్‌లు చూడండి')}</button>
+    <p style="font-size:.78rem;color:var(--text-light);margin-top:.6rem">${L('NyayaSahayak never takes payment to rank or recommend a lawyer.', 'न्यायसहायक किसी वकील को रैंक या अनुशंसा के लिए भुगतान नहीं लेता।', 'ఒక న్యాయవాదిని ర్యాంక్ చేయడానికి లేదా సిఫార్సు చేయడానికి న్యాయసహాయక్ ఎప్పుడూ డబ్బు తీసుకోదు.')}</p>
+  </div>`;
+}
+function routeLawyer() {
+  const caseType = $('fl_type').value, budget = $('fl_budget').value;
+  const b = Number(budget) || 0, track = routeByBudget(budget);
+  const parts = [`<div class="alert alert-info"><strong>${L('Budget', 'बजट', 'బడ్జెట్')}:</strong> ${b > 0 ? '₹' + b.toLocaleString('en-IN') : L('None / cannot afford', 'कोई नहीं / वहन नहीं', 'ఏమీ లేదు')} → ${L('best fit', 'सर्वोत्तम', 'ఉత్తమం')}: <strong>${trackLabel(track)}</strong></div>`];
+  if (track === 'freeaid') parts.push(freeAidCard(), lowcostCard());
+  else if (track === 'lowcost') parts.push(freeAidCard(), lowcostCard(), diyCard());
+  else {
+    parts.push(privateCard(track, caseType));
+    parts.push(`<p style="font-size:.83rem;color:var(--text-light)">${L('Cheaper routes you can still use:', 'सस्ते विकल्प जो आप फिर भी उपयोग कर सकते हैं:', 'మీరు ఇంకా ఉపయోగించగల చౌక మార్గాలు:')}</p>`, freeAidCard(), lawyerTrustBlock());
+  }
+  $('fl_result').innerHTML = parts.join('');
+  $('fl_result').scrollIntoView({ behavior: 'smooth' });
 }
 
 // ============================================
@@ -1038,6 +1120,8 @@ const handlers = {
   findLocation,
   showRights,
   checkEligibility,
+  routeLawyer,
+  contactLawyer: (id) => { toast('📨 ' + L('Request feature launches with the verified directory', 'अनुरोध सुविधा सत्यापित निर्देशिका के साथ आएगी', 'ధృవీకరించిన డైరెక్టరీతో అభ్యర్థన ఫీచర్ వస్తుంది')); },
   tryUnlock: async () => {
     const err = $('unlockErr');
     const pin = $('unlockPin').value;
