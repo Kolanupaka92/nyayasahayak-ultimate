@@ -12,7 +12,7 @@ import { lookupTargets, statusSummary, isValidCNR } from './ecourts-api.js';
 import { ELIG_CATEGORIES, INCOME_CEILINGS, LIMITATION, GLOSSARY, LOWCOST_CHANNELS } from './legal-data.js';
 import { routeByBudget, findLawyers, verifiedCount } from './lawyer-directory.js';
 import { speak, speakHelplines, isSupported as ttsSupported, hasVoiceFor, startDictation, stopDictation, sttSupported, isDictating } from './ivr.js';
-import { encryptData, decryptData, unlockWithPin, hashPin, isUnlocked, isEncrypted } from './encryption.js';
+import { encryptData, decryptData, unlockWithPin, hashPin, isUnlocked, isEncrypted, newSalt } from './encryption.js';
 import { putDoc, getDoc, deleteDocsForCase, extractText, isStorageSupported } from './storage.js';
 
 // ---------- State ----------
@@ -53,6 +53,13 @@ async function loadCases() {
     if (e.message === 'LOCKED') { locked = true; cases = []; return; }
     cases = []; locked = false;
   }
+}
+
+// Per-user encryption salt (created once, stored on device).
+function getOrCreateSalt() {
+  let s = localStorage.getItem('nyayaSalt');
+  if (!s) { s = newSalt(); localStorage.setItem('nyayaSalt', s); }
+  return s;
 }
 
 // ---------- i18n ----------
@@ -193,7 +200,7 @@ async function lockApp() {
   const h = await hashPin(pin);
   if (pinHash && pinHash !== h) { toast('❌ ' + L('Wrong PIN', 'गलत PIN', 'తప్పు PIN'), 'error'); return; }
   pinHash = h; localStorage.setItem('nyayaPinHash', h);
-  await unlockWithPin(pin);
+  await unlockWithPin(pin, getOrCreateSalt());
   locked = false;
   await saveCases(); // (re)write encrypted with the derived key
   toast('🔒 ' + L('Data secured & encrypted', 'डेटा एन्क्रिप्ट किया गया', 'డేటా ఎన్‌క్రిప్ట్ చేయబడింది'));
@@ -304,7 +311,7 @@ function renderDashboard() {
         ${emergencyNumbers().map(n => `<div><strong>${esc(n.label)}</strong><p><a class="emergency-num" href="tel:${n.num}">${n.num}</a></p></div>`).join('')}
       </div>
     </div>
-    <div class="alert alert-success"><strong>🛡️ ${L('Private by design', 'सुरक्षित', 'డిజైన్ ద్వారా గోప్యం')}:</strong> ${L('All your data stays on this device. No servers, no tracking. Tap the lock icon to encrypt with a PIN.', 'सारा डेटा इसी डिवाइस पर रहता है। कोई सर्वर नहीं। PIN से एन्क्रिप्ट करें।', 'మీ డేటా అంతా ఈ పరికరంలోనే ఉంటుంది. సర్వర్‌లు లేవు, ట్రాకింగ్ లేదు. PINతో ఎన్‌క్రిప్ట్ చేయడానికి లాక్ చిహ్నాన్ని నొక్కండి.')}</div>`;
+    <div class="alert alert-success"><strong>🛡️ ${L('Private by design', 'सुरक्षित', 'డిజైన్ ద్వారా గోప్యం')}:</strong> ${L('Your case details never leave this device — no accounts, no analytics, no server stores your case. Tap the lock icon to encrypt with a PIN.', 'आपके मामले का विवरण इस डिवाइस से बाहर नहीं जाता — कोई खाता नहीं, कोई एनालिटिक्स नहीं। PIN से एन्क्रिप्ट करें।', 'మీ కేసు వివరాలు ఈ పరికరాన్ని వదిలి వెళ్లవు — ఖాతాలు లేవు, అనలిటిక్స్ లేవు. PINతో ఎన్‌క్రిప్ట్ చేయడానికి లాక్ చిహ్నాన్ని నొక్కండి.')}<br><small style="opacity:.85">🎙️ ${L('Note: voice features use your browser’s speech service, which may process audio online.', 'नोट: आवाज सुविधाएं आपके ब्राउज़र की स्पीच सेवा उपयोग करती हैं, जो ऑडियो ऑनलाइन प्रोसेस कर सकती है।', 'గమనిక: వాయిస్ ఫీచర్‌లు మీ బ్రౌజర్ స్పీచ్ సేవను ఉపయోగిస్తాయి, ఇది ఆడియోను ఆన్‌లైన్‌లో ప్రాసెస్ చేయవచ్చు.')}</small></div>`;
 }
 function featureDesc(id) {
   const d = {
@@ -1104,6 +1111,25 @@ function renderHelpline() {
     </div>`;
 }
 
+// Open a stored file. Only render types that cannot execute script in our
+// origin inline; anything else (svg, html, unknown) is force-downloaded so a
+// malicious upload can't run as same-origin script.
+const INLINE_SAFE_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'text/plain'];
+function openBlobSafely(blob, name) {
+  const type = (blob.type || '').toLowerCase();
+  const url = URL.createObjectURL(blob);
+  if (INLINE_SAFE_TYPES.includes(type)) {
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } else {
+    const a = document.createElement('a');
+    a.href = url; a.download = name || 'document';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast('💾 ' + L('Downloaded (this file type can’t be previewed safely)', 'डाउनलोड (यह फाइल प्रकार सुरक्षित रूप से नहीं दिखा सकते)', 'డౌన్‌లోడ్ (ఈ ఫైల్ రకాన్ని సురక్షితంగా చూపలేము)'));
+  }
+}
+
 // ============================================
 // Handlers exposed to inline onclick via window.NS
 // ============================================
@@ -1128,7 +1154,7 @@ const handlers = {
     if (!/^\d{4}$/.test(pin)) { err.textContent = L('PIN must be 4 digits', 'PIN 4 अंक का हो', 'PIN 4 అంకెలు ఉండాలి'); return; }
     const h = await hashPin(pin);
     if (h !== pinHash) { err.textContent = L('Wrong PIN — try again', 'गलत PIN — फिर कोशिश करें', 'తప్పు PIN — మళ్ళీ ప్రయత్నించండి'); $('unlockPin').value = ''; return; }
-    await unlockWithPin(pin);
+    await unlockWithPin(pin, getOrCreateSalt());
     locked = false;
     await loadCases();
     hideUnlockGate();
@@ -1140,6 +1166,7 @@ const handlers = {
     if (!confirm(L('This permanently deletes the encrypted case data on this device. Continue?', 'यह इस डिवाइस पर एन्क्रिप्टेड डेटा स्थायी रूप से हटा देगा। जारी रखें?', 'ఇది ఈ పరికరంలోని ఎన్‌క్రిప్ట్ డేటాను శాశ్వతంగా తొలగిస్తుంది. కొనసాగించాలా?'))) return;
     localStorage.removeItem('nyayaCases');
     localStorage.removeItem('nyayaPinHash');
+    localStorage.removeItem('nyayaSalt');
     pinHash = null; locked = false; cases = [];
     hideUnlockGate();
     renderSidebar();
@@ -1177,19 +1204,12 @@ const handlers = {
   },
   openCase: (id) => { currentCase = cases.find(c => c.id === id); toast('📂 ' + id); showPage('guide'); },
   deleteCase: async (id) => { if (!confirm(L('Delete this case?', 'मामला हटाएं?', 'ఈ కేసును తొలగించాలా?'))) return; await deleteDocsForCase(id).catch(() => {}); cases = cases.filter(c => c.id !== id); if (currentCase?.id === id) currentCase = null; await saveCases(); renderCaseList(); renderSidebar(); },
-  viewAnalyzerFile: () => {
-    if (!lastAnalyzerFile) return;
-    const url = URL.createObjectURL(lastAnalyzerFile);
-    window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  },
+  viewAnalyzerFile: () => { if (lastAnalyzerFile) openBlobSafely(lastAnalyzerFile, lastAnalyzerFile.name); },
   viewDoc: async (docId) => {
     try {
       const d = await getDoc(docId);
       if (!d || !d.blob) { toast('⚠️ ' + L('File not found', 'फाइल नहीं मिली', 'ఫైల్ కనబడలేదు'), 'warning'); return; }
-      const url = URL.createObjectURL(d.blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      openBlobSafely(d.blob, d.name);
     } catch (e) { toast('⚠️ ' + L('Could not open file', 'फाइल नहीं खुली', 'ఫైల్ తెరవలేకపోయాం'), 'warning'); }
   },
   analyzeDoc: async (docId) => {

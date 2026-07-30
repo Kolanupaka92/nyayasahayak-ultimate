@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyzeNotice, detectLang, classifyCase, extractDates, extractAmounts, scoreUrgency } from '../js/ai-engine.js';
 import { isValidCNR, lookupTargets, statusSummary } from '../js/ecourts-api.js';
-import { encryptData, decryptData, unlockWithPin, lock, isEncrypted, isUnlocked } from '../js/encryption.js';
+import { encryptData, decryptData, unlockWithPin, lock, isEncrypted, isUnlocked, newSalt } from '../js/encryption.js';
 import { nearbyServices } from '../js/geolocation.js';
 
 test('classifyCase covers the main categories', () => {
@@ -69,14 +69,15 @@ test('nearbyServices localises names', () => {
   assert.equal(nearbyServices('Hyderabad', 'en')[0].name, 'District Court');
 });
 
-test('encryption: plain when locked, AES round-trip when unlocked', async () => {
+test('encryption: plain when locked, AES round-trip (v2) when unlocked', async () => {
   lock();
   const plain = await encryptData([{ a: 1 }]);
   assert.equal(plain, JSON.stringify([{ a: 1 }]));
 
-  await unlockWithPin('1234');
+  const salt = newSalt();
+  await unlockWithPin('1234', salt);
   const enc = await encryptData([{ a: 1, b: 'x' }]);
-  assert.ok(enc.startsWith('enc::'), 'ciphertext should be prefixed');
+  assert.ok(enc.startsWith('enc2::'), 'v2 ciphertext should be prefixed enc2::');
   assert.equal(isEncrypted(enc), true);
   assert.equal(isEncrypted('[]'), false);
   const back = await decryptData(enc);
@@ -84,8 +85,16 @@ test('encryption: plain when locked, AES round-trip when unlocked', async () => 
   lock();
 });
 
+test('wrong salt cannot decrypt (per-user salt matters)', async () => {
+  await unlockWithPin('1234', newSalt());
+  const enc = await encryptData([{ a: 1 }]);
+  await unlockWithPin('1234', newSalt()); // same PIN, different salt
+  await assert.rejects(() => decryptData(enc));
+  lock();
+});
+
 test('locked decrypt throws LOCKED (never returns empty over ciphertext)', async () => {
-  await unlockWithPin('4321');
+  await unlockWithPin('4321', newSalt());
   const enc = await encryptData([{ secret: true }]);
   lock(); // simulate a fresh load without the session key
   assert.equal(isUnlocked(), false);

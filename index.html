@@ -9,9 +9,8 @@
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" href="./icons/icon-192.png">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari&family=Noto+Sans+Telugu&family=Noto+Sans+Tamil&family=Noto+Sans+Kannada&family=Noto+Sans+Malayalam&display=swap" rel="stylesheet">
+<!-- No external fonts: we rely on the device's system Indic fonts (Noto ships on Android)
+     so nothing leaks to Google and the app works fully offline & under a strict CSP. -->
 <link rel="stylesheet" href="./css/styles.css">
 </head>
 <body>
